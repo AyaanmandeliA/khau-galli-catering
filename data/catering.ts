@@ -31,11 +31,12 @@ export type PackageSlot = {
 export type CateringPackage = {
   id: string;
   name: string;
-  pricePerGuest: number;
+  pricePerGuest: number | null;
   description: string;
   dietary: Dietary;
   slots: PackageSlot[];
   fixedItems?: string[];
+  quoteOnly?: boolean;
 };
 
 export const menuSections: MenuSection[] = [
@@ -283,6 +284,15 @@ export const cateringPackages: CateringPackage[] = [
     description: "A welcome drink, 4 chaats or snacks, veg and non-veg mains, bread, rice and dessert.",
     dietary: "mixed",
     slots: [slot("drink", "Welcome drink", "drinks", 1), slot("chaat-snacks", "Chaats or snacks", "chaat-snacks", 4), slot("veg-mains", "Veg mains", "veg-mains", 2), slot("non-veg-main", "Non-veg main", "non-veg-mains", 1), slot("bread", "Bread", "breads", 1), slot("rice", "Rice", "rice", 1), slot("dessert", "Dessert", "desserts", 1)],
+  },
+  {
+    id: "build-your-own",
+    name: "Build Your Own Menu",
+    pricePerGuest: null,
+    description: "Pick any dishes from the complete catering menu. Our team will price your exact brief and send a tailored quotation.",
+    dietary: "mixed",
+    slots: [],
+    quoteOnly: true,
   },
 ];
 

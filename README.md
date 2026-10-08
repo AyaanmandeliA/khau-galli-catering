@@ -5,7 +5,8 @@ The public Khau Galli catering menu and enquiry builder for `catering.thekhaugal
 
 ## What customers can do
 
-- Compare all nine standard catering packages and their per-person rates.
+- Compare all nine standard catering packages and their per-person rates, or build a quote-only custom menu.
+- Select any number of dishes across all 25 menu sections for a tailored team quotation.
 - Configure every included menu choice, including the Street Food Delights 3/2/1 selection rule.
 - Add live counters, service extras and premium shisha.
 - Enter event details, review an indicative total and open a structured WhatsApp enquiry to `+971 52 559 6653`.
