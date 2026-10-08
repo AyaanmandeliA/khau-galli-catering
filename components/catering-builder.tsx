@@ -1,0 +1,537 @@
+
+"use client";
+
+import Image from "next/image";
+import { useEffect, useMemo, useState } from "react";
+import {
+  CalendarDays,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  CircleCheck,
+  Clock3,
+  MapPin,
+  MessageCircle,
+  Minus,
+  Plus,
+  Search,
+  Sparkles,
+  Users,
+  UtensilsCrossed,
+} from "lucide-react";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  cateringPackages,
+  liveCounters,
+  locations,
+  menuSections,
+  paanShishaFlavours,
+  fruitShishaFlavours,
+  selectionGroups,
+  serviceExtras,
+  type CateringPackage,
+} from "@/data/catering";
+
+type Selections = Record<string, string[]>;
+type EventDetails = {
+  name: string;
+  mobile: string;
+  email: string;
+  guests: string;
+  eventType: string;
+  date: string;
+  time: string;
+  location: string;
+  notes: string;
+};
+
+type ModelContext = {
+  registerTool: (tool: {
+    name: string;
+    title: string;
+    description: string;
+    inputSchema: Record<string, unknown>;
+    annotations: { readOnlyHint: boolean; untrustedContentHint: boolean };
+    execute: (input: Record<string, unknown>) => unknown;
+  }, options?: { signal?: AbortSignal }) => void | Promise<void>;
+};
+
+const steps = ["Package", "Menu", "Add-ons", "Event", "Review"];
+const cateringPhone = "971525596653";
+
+const initialDetails: EventDetails = {
+  name: "",
+  mobile: "",
+  email: "",
+  guests: "20",
+  eventType: "",
+  date: "",
+  time: "",
+  location: "",
+  notes: "",
+};
+
+function dietaryLabel(value: CateringPackage["dietary"]) {
+  if (value === "veg") return "Vegetarian";
+  if (value === "non-veg") return "Non-vegetarian";
+  return "Veg & non-veg";
+}
+
+function formatMoney(value: number) {
+  return new Intl.NumberFormat("en-AE", { maximumFractionDigits: 0 }).format(value);
+}
+
+function FieldLabel({ children, required = false }: { children: React.ReactNode; required?: boolean }) {
+  return <span className="field-label">{children}{required ? <span aria-hidden="true"> *</span> : null}</span>;
+}
+
+function SelectionPill({ item, checked, disabled, onToggle }: { item: string; checked: boolean; disabled: boolean; onToggle: () => void }) {
+  return (
+    <label className={`selection-pill ${checked ? "is-checked" : ""} ${disabled ? "is-disabled" : ""}`}>
+      <Checkbox checked={checked} disabled={disabled && !checked} onCheckedChange={onToggle} aria-label={item} />
+      <span>{item}</span>
+    </label>
+  );
+}
+
+export function CateringBuilder() {
+  const [step, setStep] = useState(0);
+  const [packageId, setPackageId] = useState("street-food-delights");
+  const [selections, setSelections] = useState<Selections>({});
+  const [selectedCounters, setSelectedCounters] = useState<string[]>([]);
+  const [counterChoices, setCounterChoices] = useState<Record<string, string>>({});
+  const [selectedExtras, setSelectedExtras] = useState<string[]>([]);
+  const [additionalHours, setAdditionalHours] = useState(false);
+  const [additionalWaiters, setAdditionalWaiters] = useState(false);
+  const [shishaCount, setShishaCount] = useState(0);
+  const [shishaFlavours, setShishaFlavours] = useState<string[]>([]);
+  const [details, setDetails] = useState<EventDetails>(initialDetails);
+  const [whatsappOpen, setWhatsappOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [menuSearch, setMenuSearch] = useState("");
+  const [menuFilter, setMenuFilter] = useState<"all" | "veg" | "non-veg">("all");
+
+  const selectedPackage = cateringPackages.find((pkg) => pkg.id === packageId) ?? cateringPackages[0];
+  const guestCount = Math.max(0, Number(details.guests) || 0);
+
+  const menuComplete = selectedPackage.slots.every((slot) => (selections[slot.id] ?? []).length === slot.count);
+  const eventComplete = details.name.trim().length >= 2
+    && details.mobile.replace(/\D/g, "").length >= 7
+    && guestCount > 0
+    && Boolean(details.eventType && details.date && details.time && details.location.trim());
+  const addOnsComplete = shishaCount === 0 || shishaCount >= 5;
+
+  const selectedCounterRows = selectedCounters.map((id) => liveCounters.find((counter) => counter.id === id)).filter(Boolean);
+  const selectedExtraRows = selectedExtras.map((id) => serviceExtras.find((extra) => extra.id === id)).filter(Boolean);
+
+  const estimate = useMemo(() => {
+    const base = selectedPackage.pricePerGuest * guestCount;
+    const extras = selectedExtraRows.reduce((sum, extra) => {
+      if (!extra) return sum;
+      return sum + (extra.priceType === "per-guest" ? extra.price * guestCount : extra.price);
+    }, 0);
+    let counters: number | null = 0;
+    if (selectedCounterRows.length > 0) {
+      if (guestCount < 25) counters = selectedCounterRows.length * 250;
+      else if (guestCount > 25) counters = selectedCounterRows.reduce((sum, counter) => sum + (counter?.ratePerGuest ?? 0) * guestCount, 0);
+      else counters = null;
+    }
+    const shisha = shishaCount >= 5 ? shishaCount * 120 : 0;
+    const knownTotal = guestCount >= 20 && counters !== null ? base + extras + counters + shisha : null;
+    return { base, extras, counters, shisha, knownTotal };
+  }, [guestCount, selectedCounterRows, selectedExtraRows, selectedPackage.pricePerGuest, shishaCount]);
+
+  const toggleSelection = (slotId: string, item: string, max: number) => {
+    setSelections((current) => {
+      const existing = current[slotId] ?? [];
+      const next = existing.includes(item)
+        ? existing.filter((candidate) => candidate !== item)
+        : existing.length < max ? [...existing, item] : existing;
+      return { ...current, [slotId]: next };
+    });
+  };
+
+  const choosePackage = (id: string) => {
+    setPackageId(id);
+    setSelections({});
+  };
+
+  const toggleListValue = (value: string, setValues: React.Dispatch<React.SetStateAction<string[]>>) => {
+    setValues((current) => current.includes(value) ? current.filter((candidate) => candidate !== value) : [...current, value]);
+  };
+
+  const menuSummary = useMemo(() => {
+    if (selectedPackage.fixedItems) return selectedPackage.fixedItems.join(", ");
+    return selectedPackage.slots.map((slot) => `${slot.label}: ${(selections[slot.id] ?? []).join(", ") || "Not selected"}`).join("\n");
+  }, [selectedPackage, selections]);
+
+  const whatsappMessage = useMemo(() => {
+    const lines = [
+      "Khau Galli Catering Enquiry",
+      "",
+      `Package: ${selectedPackage.name}`,
+      `Catalogue rate: AED ${selectedPackage.pricePerGuest} per guest`,
+      `Guests: ${details.guests || "-"}`,
+      "",
+      "Menu selections:",
+    ];
+    if (selectedPackage.fixedItems) {
+      lines.push(`Included: ${selectedPackage.fixedItems.join(", ")}`);
+    } else {
+      selectedPackage.slots.forEach((slot) => lines.push(`${slot.label}: ${(selections[slot.id] ?? []).join(", ") || "-"}`));
+    }
+    lines.push("");
+    lines.push(`Live counters: ${selectedCounterRows.length ? selectedCounterRows.map((counter) => `${counter?.name}${counter?.choices && counterChoices[counter.id] ? ` (${counterChoices[counter.id]})` : ""}`).join(", ") : "None"}`);
+    lines.push(`Service extras: ${selectedExtraRows.length ? selectedExtraRows.map((extra) => extra?.name).join(", ") : "None"}`);
+    if (additionalHours) lines.push("Additional live-counter hours: Requested");
+    if (additionalWaiters) lines.push("Additional waiters: Requested");
+    if (shishaCount > 0) lines.push(`Premium shisha service: ${shishaCount} shishas${shishaFlavours.length ? ` - ${shishaFlavours.join(", ")}` : ""}`);
+    lines.push("");
+    lines.push(`Event type: ${details.eventType || "-"}`);
+    lines.push(`Event date: ${details.date || "-"}`);
+    lines.push(`Preferred time: ${details.time || "-"}`);
+    lines.push(`Location: ${details.location || "-"}`);
+    if (details.notes.trim()) lines.push(`Notes: ${details.notes.trim()}`);
+    lines.push("");
+    lines.push(`Name: ${details.name || "-"}`);
+    lines.push(`Mobile: ${details.mobile || "-"}`);
+    if (details.email.trim()) lines.push(`Email: ${details.email.trim()}`);
+    lines.push("");
+    if (estimate.knownTotal !== null) lines.push(`Indicative known total: AED ${formatMoney(estimate.knownTotal)}`);
+    else if (guestCount < 20) lines.push("Estimate: Price confirmation required for fewer than 20 guests.");
+    else if (guestCount === 25 && selectedCounterRows.length) lines.push("Estimate: Live-counter charge at exactly 25 guests to be confirmed.");
+    lines.push("Please confirm availability, final pricing, setup and delivery details.");
+    return lines.join("\n");
+  }, [additionalHours, additionalWaiters, counterChoices, details, estimate.knownTotal, guestCount, selectedCounterRows, selectedExtraRows, selectedPackage, selections, shishaCount, shishaFlavours]);
+
+  const whatsappUrl = `https://wa.me/${cateringPhone}?text=${encodeURIComponent(whatsappMessage)}`;
+
+  useEffect(() => {
+    const context = (document as Document & { modelContext?: ModelContext }).modelContext;
+    if (!context?.registerTool) return;
+    const lifecycle = new AbortController();
+    const safeRegister = (tool: Parameters<ModelContext["registerTool"]>[0]) => {
+      try { void Promise.resolve(context.registerTool(tool, { signal: lifecycle.signal })).catch(() => undefined); } catch { /* unsupported browser */ }
+    };
+    safeRegister({
+      name: "list_catering_packages",
+      title: "List catering packages",
+      description: "Read Khau Galli's standard catering packages, prices and included selection slots.",
+      inputSchema: { type: "object", properties: {}, additionalProperties: false },
+      annotations: { readOnlyHint: true, untrustedContentHint: false },
+      execute: () => cateringPackages.map((pkg) => ({ id: pkg.id, name: pkg.name, price_per_guest_aed: pkg.pricePerGuest, fixed_items: pkg.fixedItems ?? null, slots: pkg.slots.map((slot) => ({ id: slot.id, label: slot.label, count: slot.count, options: selectionGroups[slot.groupId].items })) })),
+    });
+    safeRegister({
+      name: "stage_catering_enquiry",
+      title: "Stage a catering enquiry",
+      description: "Select a package, guest count and valid menu choices in the visible Khau Galli catering builder. This does not send an enquiry.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          package_id: { type: "string", enum: cateringPackages.map((pkg) => pkg.id) },
+          guests: { type: "integer", minimum: 1 },
+          selections: { type: "object", additionalProperties: { type: "array", items: { type: "string" } } },
+        },
+        required: ["package_id", "guests"],
+        additionalProperties: false,
+      },
+      annotations: { readOnlyHint: false, untrustedContentHint: false },
+      execute: (input) => {
+        const nextPackage = cateringPackages.find((pkg) => pkg.id === input.package_id);
+        if (!nextPackage) throw new Error("Unknown package_id.");
+        const nextSelections = (input.selections && typeof input.selections === "object" ? input.selections : {}) as Selections;
+        for (const slot of nextPackage.slots) {
+          const values = nextSelections[slot.id] ?? [];
+          const allowed = selectionGroups[slot.groupId].items;
+          if (values.length > slot.count || values.some((value) => !allowed.includes(value))) throw new Error(`Invalid selections for ${slot.label}.`);
+        }
+        setPackageId(nextPackage.id);
+        setDetails((current) => ({ ...current, guests: String(input.guests) }));
+        setSelections(nextSelections);
+        setStep(nextPackage.slots.length ? 1 : 2);
+        return { staged: true, package: nextPackage.name, guests: input.guests, menu_complete: nextPackage.slots.every((slot) => (nextSelections[slot.id] ?? []).length === slot.count) };
+      },
+    });
+    safeRegister({
+      name: "read_catering_enquiry",
+      title: "Read catering enquiry",
+      description: "Read the package, menu selections, add-ons, event details and current estimate staged in the visible catering builder.",
+      inputSchema: { type: "object", properties: {}, additionalProperties: false },
+      annotations: { readOnlyHint: true, untrustedContentHint: false },
+      execute: () => ({ package: selectedPackage.name, guests: guestCount, menu: menuSummary, live_counters: selectedCounterRows.map((counter) => counter?.name), service_extras: selectedExtraRows.map((extra) => extra?.name), event: details, indicative_known_total_aed: estimate.knownTotal }),
+    });
+    return () => lifecycle.abort();
+  }, [details, estimate.knownTotal, guestCount, menuSummary, selectedCounterRows, selectedExtraRows, selectedPackage]);
+
+  const goNext = () => setStep((current) => Math.min(4, current + 1));
+  const goBack = () => setStep((current) => Math.max(0, current - 1));
+
+  const filteredMenu = menuSections.filter((section) => {
+    const dietaryMatch = menuFilter === "all" || section.dietary === menuFilter;
+    const query = menuSearch.trim().toLowerCase();
+    return dietaryMatch && (!query || section.label.toLowerCase().includes(query) || section.items.some((item) => item.toLowerCase().includes(query)));
+  });
+
+  return (
+    <main>
+      <header className="site-header">
+        <a className="brand-lockup" href="#top" aria-label="Khau Galli catering home">
+          <Image src="/catering/khau-galli-logo.webp" alt="Khau Galli" width={210} height={72} priority />
+          <span>Catering</span>
+        </a>
+        <div className="header-links">
+          <a href="#menu">Full menu</a>
+          <a className="header-cta" href="#build"><MessageCircle aria-hidden="true" /> Build your enquiry</a>
+        </div>
+      </header>
+
+      <section className="hero" id="top">
+        <div className="hero-copy">
+          <p className="eyebrow"><Sparkles aria-hidden="true" /> Khau Galli Catering</p>
+          <h1>Your menu. Your crowd. Our full street-food theatre.</h1>
+          <p>Choose a package, make every menu pick, add live counters and send one clear event brief to our catering team.</p>
+          <div className="hero-facts">
+            <span><Users aria-hidden="true" /> Package pricing for 20+ guests</span>
+            <span><Check aria-hidden="true" /> Premium setup included</span>
+          </div>
+        </div>
+        <div className="hero-image-wrap">
+          <Image src="/catering/outdoor-service.webp" alt="Khau Galli outdoor catering setup" fill sizes="(max-width: 800px) 100vw, 44vw" priority />
+          <div className="hero-stamp">From chaat carts<br />to full-course feasts</div>
+        </div>
+      </section>
+
+      <section className="builder-shell" id="build">
+        <nav className="step-nav" aria-label="Catering enquiry steps">
+          {steps.map((label, index) => (
+            <button key={label} type="button" className={`${step === index ? "is-active" : ""} ${step > index ? "is-complete" : ""}`} onClick={() => setStep(index)}>
+              <span>{step > index ? <Check aria-hidden="true" /> : index + 1}</span>
+              {label}
+            </button>
+          ))}
+        </nav>
+
+        {step === 0 ? (
+          <div className="step-panel">
+            <div className="builder-intro">
+              <div><p className="eyebrow">Step 1 of 5</p><h2>Start with a catering package</h2></div>
+              <p>Catalogue prices are per guest for 20 or more guests. Smaller events receive a tailored quote.</p>
+            </div>
+            <RadioGroup value={packageId} onValueChange={choosePackage} className="package-grid" aria-label="Standard catering packages">
+              {cateringPackages.map((pkg) => (
+                <label className={`package-card ${packageId === pkg.id ? "is-selected" : ""}`} key={pkg.id}>
+                  <RadioGroupItem value={pkg.id} aria-label={pkg.name} />
+                  <span className="package-card-body">
+                    <span className="package-meta"><span>{dietaryLabel(pkg.dietary)}</span><strong>AED {pkg.pricePerGuest}<small>/guest</small></strong></span>
+                    <span className="package-name">{pkg.name}</span>
+                    <span className="package-description">{pkg.description}</span>
+                  </span>
+                </label>
+              ))}
+            </RadioGroup>
+            <div className="step-actions"><span /><Button className="primary-action" size="lg" onClick={goNext}>Choose menu <ChevronRight /></Button></div>
+          </div>
+        ) : null}
+
+        {step === 1 ? (
+          <div className="step-panel">
+            <div className="builder-intro">
+              <div><p className="eyebrow">Step 2 of 5</p><h2>Choose every included dish</h2></div>
+              <p>{selectedPackage.name} · AED {selectedPackage.pricePerGuest} per guest</p>
+            </div>
+            {selectedPackage.fixedItems ? (
+              <div className="fixed-menu-card">
+                <CircleCheck aria-hidden="true" />
+                <div><h3>Your Chaat Counter is already set</h3><p>{selectedPackage.fixedItems.join(" · ")}</p><small>These four items are served together at AED 40 per guest.</small></div>
+              </div>
+            ) : (
+              <div className="slot-stack">
+                {selectedPackage.slots.map((slot, index) => {
+                  const selected = selections[slot.id] ?? [];
+                  const options = selectionGroups[slot.groupId].items;
+                  return (
+                    <section className="slot-card" key={slot.id}>
+                      <div className="slot-heading">
+                        <div><span>{String(index + 1).padStart(2, "0")}</span><div><h3>{slot.label}</h3><p>Choose exactly {slot.count}</p></div></div>
+                        <strong className={selected.length === slot.count ? "is-done" : ""}>{selected.length} / {slot.count}</strong>
+                      </div>
+                      <div className="selection-grid">
+                        {options.map((item) => <SelectionPill key={item} item={item} checked={selected.includes(item)} disabled={selected.length >= slot.count} onToggle={() => toggleSelection(slot.id, item, slot.count)} />)}
+                      </div>
+                    </section>
+                  );
+                })}
+              </div>
+            )}
+            <div className="step-actions"><Button variant="outline" size="lg" onClick={goBack}><ChevronLeft /> Back</Button><Button className="primary-action" size="lg" disabled={!menuComplete} onClick={goNext}>Add counters <ChevronRight /></Button></div>
+          </div>
+        ) : null}
+
+        {step === 2 ? (
+          <div className="step-panel">
+            <div className="builder-intro">
+              <div><p className="eyebrow">Step 3 of 5</p><h2>Add live counters and service extras</h2></div>
+              <p>All live counters run for 3 hours. Extra hours and additional waiters are quoted separately.</p>
+            </div>
+            <div className="counter-note"><strong>Live-counter pricing:</strong> AED 250 per selected counter below 25 guests. Above 25 guests, the listed per-guest rate applies. Exactly 25 guests will be confirmed by the team.</div>
+            <div className="counter-layout">
+              <div>
+                <h3 className="subsection-title">Live counter options</h3>
+                <div className="counter-grid">
+                  {liveCounters.map((counter) => {
+                    const checked = selectedCounters.includes(counter.id);
+                    return (
+                      <div className={`counter-card ${checked ? "is-selected" : ""}`} key={counter.id}>
+                        <label>
+                          <Checkbox checked={checked} onCheckedChange={() => toggleListValue(counter.id, setSelectedCounters)} aria-label={counter.name} />
+                          <span><strong>{counter.name}</strong><small>{counter.description}</small></span>
+                          <b>AED {counter.ratePerGuest}<small>/guest*</small></b>
+                        </label>
+                        {checked && counter.choices ? (
+                          <RadioGroup value={counterChoices[counter.id] ?? ""} onValueChange={(value) => setCounterChoices((current) => ({ ...current, [counter.id]: value }))} className="counter-choice-list" aria-label={`${counter.name} preparation`}>
+                            {counter.choices.map((choice) => <label key={choice}><RadioGroupItem value={choice} />{choice}</label>)}
+                          </RadioGroup>
+                        ) : null}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+              <aside className="extras-panel">
+                <h3 className="subsection-title">Service extras</h3>
+                {serviceExtras.map((extra) => (
+                  <label className="extra-row" key={extra.id}>
+                    <Checkbox checked={selectedExtras.includes(extra.id)} onCheckedChange={() => toggleListValue(extra.id, setSelectedExtras)} />
+                    <span>{extra.name}</span>
+                    <strong>+ AED {extra.price}{extra.priceType === "per-guest" ? " pp" : ""}</strong>
+                  </label>
+                ))}
+                <label className="extra-row"><Checkbox checked={additionalHours} onCheckedChange={(value) => setAdditionalHours(Boolean(value))} /><span>Additional counter hours</span><strong>On quote</strong></label>
+                <label className="extra-row"><Checkbox checked={additionalWaiters} onCheckedChange={(value) => setAdditionalWaiters(Boolean(value))} /><span>Additional waiters</span><strong>On quote</strong></label>
+                <div className="shisha-box">
+                  <div><span className="eyebrow">Optional service</span><h4>Premium Shisha</h4><p>AED 120 per shisha, minimum 5. Includes unlimited flavour refreshes for 3 hours.</p></div>
+                  <div className="quantity-control"><Button variant="outline" size="icon" onClick={() => setShishaCount((current) => Math.max(0, current - 1))} aria-label="Remove one shisha"><Minus /></Button><strong>{shishaCount}</strong><Button variant="outline" size="icon" onClick={() => setShishaCount((current) => current === 0 ? 5 : current + 1)} aria-label="Add one shisha"><Plus /></Button></div>
+                  {shishaCount > 0 ? (
+                    <Accordion type="single" collapsible>
+                      <AccordionItem value="flavours"><AccordionTrigger>Choose preferred flavours ({shishaFlavours.length})</AccordionTrigger><AccordionContent><div className="flavour-grid">{[...paanShishaFlavours, ...fruitShishaFlavours].map((flavour) => <SelectionPill key={flavour} item={flavour} checked={shishaFlavours.includes(flavour)} disabled={false} onToggle={() => toggleListValue(flavour, setShishaFlavours)} />)}</div></AccordionContent></AccordionItem>
+                    </Accordion>
+                  ) : null}
+                  {shishaCount > 0 && shishaCount < 5 ? <p className="validation-note">Minimum 5 shishas.</p> : null}
+                </div>
+              </aside>
+            </div>
+            <div className="step-actions"><Button variant="outline" size="lg" onClick={goBack}><ChevronLeft /> Back</Button><Button className="primary-action" size="lg" disabled={!addOnsComplete} onClick={goNext}>Event details <ChevronRight /></Button></div>
+          </div>
+        ) : null}
+
+        {step === 3 ? (
+          <div className="step-panel event-step">
+            <div className="builder-intro">
+              <div><p className="eyebrow">Step 4 of 5</p><h2>Tell us about the event</h2></div>
+              <p>These details go into the WhatsApp brief so the catering manager can respond with a final quote.</p>
+            </div>
+            <div className="event-grid">
+              <label><FieldLabel required>Your name</FieldLabel><Input value={details.name} onChange={(event) => setDetails({ ...details, name: event.target.value })} placeholder="Full name" autoComplete="name" /></label>
+              <label><FieldLabel required>Mobile / WhatsApp</FieldLabel><Input value={details.mobile} onChange={(event) => setDetails({ ...details, mobile: event.target.value })} placeholder="+971 5X XXX XXXX" type="tel" autoComplete="tel" /></label>
+              <label><FieldLabel>Email</FieldLabel><Input value={details.email} onChange={(event) => setDetails({ ...details, email: event.target.value })} placeholder="Optional" type="email" autoComplete="email" /></label>
+              <label><FieldLabel required>Number of guests</FieldLabel><Input value={details.guests} onChange={(event) => setDetails({ ...details, guests: event.target.value.replace(/\D/g, "") })} min="1" inputMode="numeric" type="number" /></label>
+              <label><FieldLabel required>Event type</FieldLabel><Select value={details.eventType} onValueChange={(value) => setDetails({ ...details, eventType: value })}><SelectTrigger><SelectValue placeholder="Select event type" /></SelectTrigger><SelectContent><SelectItem value="Corporate event">Corporate event</SelectItem><SelectItem value="Private party">Private party</SelectItem><SelectItem value="Wedding function">Wedding function</SelectItem><SelectItem value="Community event">Community event</SelectItem><SelectItem value="School or university event">School or university event</SelectItem><SelectItem value="Other">Other</SelectItem></SelectContent></Select></label>
+              <label><FieldLabel required>Event date</FieldLabel><div className="input-with-icon"><CalendarDays /><Input value={details.date} onChange={(event) => setDetails({ ...details, date: event.target.value })} type="date" /></div></label>
+              <label><FieldLabel required>Preferred service time</FieldLabel><div className="input-with-icon"><Clock3 /><Input value={details.time} onChange={(event) => setDetails({ ...details, time: event.target.value })} type="time" /></div></label>
+              <label className="span-2"><FieldLabel required>Event location</FieldLabel><div className="input-with-icon"><MapPin /><Input value={details.location} onChange={(event) => setDetails({ ...details, location: event.target.value })} placeholder="Area, venue and emirate" autoComplete="street-address" /></div></label>
+              <label className="span-2"><FieldLabel>Notes, allergies or setup requests</FieldLabel><Textarea value={details.notes} onChange={(event) => setDetails({ ...details, notes: event.target.value })} placeholder="Tell us about dietary needs, venue access, serving preferences or anything else the team should know." rows={4} /></label>
+            </div>
+            {guestCount > 0 && guestCount < 20 ? <div className="counter-note"><strong>Under 20 guests:</strong> the PDF package prices do not apply automatically; the team will send a tailored quote.</div> : null}
+            <div className="step-actions"><Button variant="outline" size="lg" onClick={goBack}><ChevronLeft /> Back</Button><Button className="primary-action" size="lg" disabled={!eventComplete} onClick={goNext}>Review enquiry <ChevronRight /></Button></div>
+          </div>
+        ) : null}
+
+        {step === 4 ? (
+          <div className="step-panel review-step">
+            <div className="builder-intro">
+              <div><p className="eyebrow">Step 5 of 5</p><h2>Review your catering brief</h2></div>
+              <p>This prepares a WhatsApp message. Nothing is booked until the Khau Galli team confirms the details.</p>
+            </div>
+            <div className="review-layout">
+              <div className="review-stack">
+                <section className="review-card"><div className="review-card-heading"><h3>Package</h3><button onClick={() => setStep(0)}>Edit</button></div><strong className="review-title">{selectedPackage.name}</strong><p>AED {selectedPackage.pricePerGuest} per guest · {guestCount} guests</p></section>
+                <section className="review-card"><div className="review-card-heading"><h3>Menu</h3><button onClick={() => setStep(1)}>Edit</button></div>{selectedPackage.fixedItems ? <p>{selectedPackage.fixedItems.join(" · ")}</p> : selectedPackage.slots.map((slot) => <div className="review-row" key={slot.id}><span>{slot.label}</span><strong>{(selections[slot.id] ?? []).join(", ")}</strong></div>)}</section>
+                <section className="review-card"><div className="review-card-heading"><h3>Add-ons</h3><button onClick={() => setStep(2)}>Edit</button></div><p>{selectedCounterRows.length ? selectedCounterRows.map((counter) => counter?.name).join(" · ") : "No live counters selected"}</p><p>{selectedExtraRows.length ? selectedExtraRows.map((extra) => extra?.name).join(" · ") : "No service extras selected"}</p>{shishaCount ? <p>{shishaCount} premium shishas</p> : null}</section>
+                <section className="review-card"><div className="review-card-heading"><h3>Event</h3><button onClick={() => setStep(3)}>Edit</button></div><div className="review-row"><span>Date and time</span><strong>{details.date} · {details.time}</strong></div><div className="review-row"><span>Location</span><strong>{details.location}</strong></div><div className="review-row"><span>Contact</span><strong>{details.name} · {details.mobile}</strong></div></section>
+              </div>
+              <aside className="estimate-card">
+                <p className="eyebrow">Indicative estimate</p>
+                <div className="estimate-row"><span>Package</span><strong>AED {formatMoney(estimate.base)}</strong></div>
+                {estimate.counters !== 0 ? <div className="estimate-row"><span>Live counters</span><strong>{estimate.counters === null ? "Confirm at 25 guests" : `AED ${formatMoney(estimate.counters)}`}</strong></div> : null}
+                {estimate.extras > 0 ? <div className="estimate-row"><span>Service extras</span><strong>AED {formatMoney(estimate.extras)}</strong></div> : null}
+                {estimate.shisha > 0 ? <div className="estimate-row"><span>Shisha service</span><strong>AED {formatMoney(estimate.shisha)}</strong></div> : null}
+                <div className="estimate-total"><span>Known total</span><strong>{estimate.knownTotal === null ? "Price on request" : `AED ${formatMoney(estimate.knownTotal)}`}</strong></div>
+                <p className="estimate-disclaimer">This is an enquiry estimate, not an invoice. Final pricing, taxes if applicable, availability, transport, staffing and setup are confirmed by the catering team.</p>
+                <Button className="whatsapp-action" size="lg" disabled={!menuComplete || !eventComplete} onClick={() => setWhatsappOpen(true)}><MessageCircle /> Prepare WhatsApp enquiry</Button>
+              </aside>
+            </div>
+            <div className="step-actions"><Button variant="outline" size="lg" onClick={goBack}><ChevronLeft /> Back</Button><span /></div>
+          </div>
+        ) : null}
+      </section>
+
+      <section className="counter-showcase">
+        <div className="counter-showcase-copy"><p className="eyebrow">Live-counter add-ons</p><h2>Freshly made. Served with a little theatre.</h2><p>Add dosa, pasta, momos, jalebi, kulfi, mocktails and more to any standard package.</p><a href="#build" onClick={() => setStep(2)}>Explore counter options</a></div>
+        <div className="showcase-image large"><Image src="/catering/live-counter.webp" alt="Khau Galli live food counter setup" fill sizes="(max-width: 800px) 100vw, 38vw" /></div>
+        <div className="showcase-image small"><Image src="/catering/chaat-service.webp" alt="Khau Galli chaat service at an event" fill sizes="(max-width: 800px) 100vw, 24vw" /></div>
+      </section>
+
+      <section className="menu-library" id="menu">
+        <div className="menu-library-heading"><div><p className="eyebrow">Full catering menu</p><h2>Every section from the catering catalogue</h2></div><p>Use this library to explore the complete range. Package pickers show only the categories included in your selected package.</p></div>
+        <div className="menu-tools">
+          <div className="menu-search"><Search aria-hidden="true" /><Input value={menuSearch} onChange={(event) => setMenuSearch(event.target.value)} placeholder="Search dishes or sections" aria-label="Search catering menu" /></div>
+          <div className="filter-buttons" aria-label="Filter menu"><Button variant={menuFilter === "all" ? "default" : "outline"} onClick={() => setMenuFilter("all")}>All</Button><Button variant={menuFilter === "veg" ? "default" : "outline"} onClick={() => setMenuFilter("veg")}>Vegetarian</Button><Button variant={menuFilter === "non-veg" ? "default" : "outline"} onClick={() => setMenuFilter("non-veg")}>Non-veg</Button></div>
+        </div>
+        <Accordion type="multiple" className="menu-accordion">
+          {filteredMenu.map((section) => {
+            const query = menuSearch.trim().toLowerCase();
+            const visibleItems = query ? section.items.filter((item) => item.toLowerCase().includes(query) || section.label.toLowerCase().includes(query)) : section.items;
+            return <AccordionItem value={section.id} key={section.id}><AccordionTrigger><span><b>{section.label}</b><small>{section.dietary === "non-veg" ? "Non-vegetarian" : "Vegetarian"} · {visibleItems.length} items</small></span></AccordionTrigger><AccordionContent><div className="menu-item-cloud">{visibleItems.map((item) => <span key={item}>{item}</span>)}</div></AccordionContent></AccordionItem>;
+          })}
+        </Accordion>
+        {filteredMenu.length === 0 ? <div className="empty-menu">No menu items match your search.</div> : null}
+      </section>
+
+      <section className="terms-section">
+        <div><p className="eyebrow">Good to know</p><h2>Clear terms before you enquire</h2></div>
+        <ul><li>Standard package pricing applies for a minimum of 20 guests; smaller events are quoted separately.</li><li>Premium catering setup with biodegradable disposable cutlery is included.</li><li>All live counters run for 3 hours. Additional hours and waiters are chargeable.</li><li>Traditional chaat-cart setup adds AED 250.</li><li>Final pricing and availability are confirmed by the Khau Galli team.</li></ul>
+      </section>
+
+      <footer>
+        <div className="footer-top"><div><Image src="/catering/khau-galli-logo.webp" alt="Khau Galli" width={230} height={80} /><p>Street food, full-course catering and live counters for events across the UAE.</p></div><div className="footer-contact"><span>Catering WhatsApp</span><a href="https://wa.me/971525596653">+971 52 559 6653</a><span>Bulk order enquiries</span><p>+971 58 665 5413 · +971 58 665 5412</p></div></div>
+        <div className="location-grid">{locations.map((location) => <div key={location.name}><strong>{location.name}</strong><span>{location.detail}</span><a href={`tel:${location.phone.replace(/\s/g, "")}`}>{location.phone}</a></div>)}</div>
+        <p className="footer-note">The Taste of India Presented in a Unique Way</p>
+      </footer>
+
+      <Dialog open={whatsappOpen} onOpenChange={setWhatsappOpen}>
+        <DialogContent className="whatsapp-dialog">
+          <DialogHeader><DialogTitle>Send your catering enquiry</DialogTitle><DialogDescription>Review the structured message below. WhatsApp opens only when you choose to continue.</DialogDescription></DialogHeader>
+          <pre>{whatsappMessage}</pre>
+          <DialogFooter>
+            <Button variant="outline" onClick={async () => { try { await navigator.clipboard.writeText(whatsappMessage); setCopied(true); window.setTimeout(() => setCopied(false), 1800); } catch { /* clipboard unavailable */ } }}>{copied ? "Copied" : "Copy message"}</Button>
+            <Button asChild className="whatsapp-action"><a href={whatsappUrl} target="_blank" rel="noopener noreferrer"><MessageCircle /> Open WhatsApp</a></Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </main>
+  );
+}
