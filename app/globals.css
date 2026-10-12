@@ -208,6 +208,8 @@ body { background: var(--background); color: var(--foreground); font-family: var
 .selection-pill.is-checked { background: #fff0bf; border-color: #b91c1c; color: #741d19; }
 .selection-pill.is-disabled:not(.is-checked) { cursor: not-allowed; opacity: .48; }
 .selection-pill [data-slot="checkbox"] { border-color: #b89761; }
+.selection-pill-copy { display: flex; flex-direction: column; gap: 2px; line-height: 1.25; }
+.selection-pill-copy small { color: #b91c1c; font-size: 10px; font-weight: 850; }
 
 .custom-menu-builder { display: grid; gap: 16px; }
 .custom-quote-note { align-items: center; background: linear-gradient(120deg, #235c31, #174524); border-radius: 24px; color: white; display: grid; gap: 18px; grid-template-columns: auto 1fr auto; padding: 24px 28px; }
@@ -268,6 +270,7 @@ body { background: var(--background); color: var(--foreground); font-family: var
 .event-grid .span-2 { grid-column: span 2; }
 .field-label { color: #5e3126; font-size: 13px; font-weight: 800; }
 .field-label span { color: #b91c1c; }
+.field-help { color: #8a6654; font-size: 11px; line-height: 1.4; }
 .event-grid [data-slot="input"], .event-grid [data-slot="select-trigger"], .event-grid [data-slot="textarea"] { background: #fffdf6; border-color: #d8bc7b; border-radius: 13px; box-shadow: none; font-size: 16px; min-height: 49px; }
 .event-grid [data-slot="textarea"] { min-height: 112px; }
 .input-with-icon { position: relative; }
@@ -326,6 +329,8 @@ body { background: var(--background); color: var(--foreground); font-family: var
 .menu-accordion [data-slot="accordion-trigger"] small { color: #8a6754; font-size: 11px; font-weight: 650; }
 .menu-item-cloud { display: flex; flex-wrap: wrap; gap: 8px; padding-bottom: 8px; }
 .menu-item-cloud span { background: #f9edca; border: 1px solid #ead19b; border-radius: 999px; color: #684034; font-size: 13px; padding: 8px 11px; }
+.menu-item-cloud span.has-surcharge { display: inline-flex; gap: 6px; }
+.menu-item-cloud span.has-surcharge small { color: #b91c1c; font-size: 10px; font-weight: 850; }
 .empty-menu { background: #fffdf6; border: 1px dashed #d7b872; border-radius: 20px; color: #7e5c4b; padding: 34px; text-align: center; }
 
 .terms-section { align-items: start; background: #f6c84a; display: grid; gap: 50px; grid-template-columns: .8fr 1.2fr; padding: 68px clamp(18px, 8vw, 120px); }

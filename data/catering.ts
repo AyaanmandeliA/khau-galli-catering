@@ -324,6 +324,19 @@ export const serviceExtras = [
   { id: "traditional-chaat-cart", name: "Traditional chaat cart instead of catering table", price: 250, priceType: "fixed" as const },
 ];
 
+export const menuItemSurcharges: Record<string, number> = {
+  "Rabri Falooda": 10,
+};
+
+export const logisticsAreas = [
+  { id: "dubai", name: "Dubai", charge: 250 },
+  { id: "abu-dhabi", name: "Abu Dhabi", charge: 500 },
+  { id: "sharjah", name: "Sharjah", charge: 250 },
+  { id: "ajman", name: "Ajman", charge: 500 },
+  { id: "al-ain", name: "Al Ain", charge: 750 },
+  { id: "fujairah", name: "Fujairah", charge: 1000 },
+];
+
 export const paanShishaFlavours = ["Paan Rasna Kiwi Vanilla", "Zaffran Paan Spring Water", "Royal Paan Masala", "Magai Paan Masala", "Rajnigandha Paan", "Commissioner", "Banarasi Paan", "Kolkata Paan", "Sweet 69 Paan", "Special Paan", "Paan Supari", "Paan Jaan"];
 export const fruitShishaFlavours = ["Double Apple", "Grape", "Orange", "Lemon", "Kiwi", "Mint", "Blueberry", "Strawberry", "Blue Mix", "Raspberry", "Watermelon", "Sweet Melon"];
 

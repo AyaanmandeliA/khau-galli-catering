@@ -37,7 +37,9 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   cateringPackages,
   liveCounters,
+  logisticsAreas,
   locations,
+  menuItemSurcharges,
   menuSections,
   paanShishaFlavours,
   fruitShishaFlavours,
@@ -55,6 +57,7 @@ type EventDetails = {
   eventType: string;
   date: string;
   time: string;
+  deliveryArea: string;
   location: string;
   notes: string;
 };
@@ -82,6 +85,7 @@ const initialDetails: EventDetails = {
   eventType: "",
   date: "",
   time: "",
+  deliveryArea: "",
   location: "",
   notes: "",
 };
@@ -96,15 +100,21 @@ function formatMoney(value: number) {
   return new Intl.NumberFormat("en-AE", { maximumFractionDigits: 0 }).format(value);
 }
 
+function describeMenuItem(item: string) {
+  const surcharge = menuItemSurcharges[item];
+  return surcharge ? `${item} (+AED ${surcharge}/guest)` : item;
+}
+
 function FieldLabel({ children, required = false }: { children: React.ReactNode; required?: boolean }) {
   return <span className="field-label">{children}{required ? <span aria-hidden="true"> *</span> : null}</span>;
 }
 
 function SelectionPill({ item, checked, disabled, onToggle }: { item: string; checked: boolean; disabled: boolean; onToggle: () => void }) {
+  const surcharge = menuItemSurcharges[item];
   return (
     <label className={`selection-pill ${checked ? "is-checked" : ""} ${disabled ? "is-disabled" : ""}`}>
       <Checkbox checked={checked} disabled={disabled && !checked} onCheckedChange={onToggle} aria-label={item} />
-      <span>{item}</span>
+      <span className="selection-pill-copy"><span>{item}</span>{surcharge ? <small>+ AED {surcharge} / guest</small> : null}</span>
     </label>
   );
 }
@@ -128,12 +138,16 @@ export function CateringBuilder() {
 
   const selectedPackage = cateringPackages.find((pkg) => pkg.id === packageId) ?? cateringPackages[0];
   const guestCount = Math.max(0, Number(details.guests) || 0);
+  const selectedDeliveryArea = logisticsAreas.find((area) => area.id === details.deliveryArea);
   const isCustomMenu = selectedPackage.id === "build-your-own";
   const customSelectedSections = menuSections.map((section) => ({
     ...section,
     selectedItems: selections[customSelectionKey(section.id)] ?? [],
   })).filter((section) => section.selectedItems.length > 0);
   const customSelectionCount = customSelectedSections.reduce((sum, section) => sum + section.selectedItems.length, 0);
+  const hasRabriFalooda = (selectedPackage.fixedItems?.includes("Rabri Falooda") ?? false)
+    || Object.values(selections).some((items) => items.includes("Rabri Falooda"));
+  const rabriFaloodaRate = menuItemSurcharges["Rabri Falooda"];
 
   const menuComplete = isCustomMenu
     ? customSelectionCount > 0
@@ -141,7 +155,7 @@ export function CateringBuilder() {
   const eventComplete = details.name.trim().length >= 2
     && details.mobile.replace(/\D/g, "").length >= 7
     && guestCount > 0
-    && Boolean(details.eventType && details.date && details.time && details.location.trim());
+    && Boolean(details.eventType && details.date && details.time && details.deliveryArea && details.location.trim());
   const addOnsComplete = shishaCount === 0 || shishaCount >= 5;
 
   const selectedCounterRows = selectedCounters.map((id) => liveCounters.find((counter) => counter.id === id)).filter(Boolean);
@@ -160,9 +174,13 @@ export function CateringBuilder() {
       else counters = null;
     }
     const shisha = shishaCount >= 5 ? shishaCount * 120 : 0;
-    const knownTotal = base !== null && guestCount >= 20 && counters !== null ? base + extras + counters + shisha : null;
-    return { base, extras, counters, shisha, knownTotal };
-  }, [guestCount, selectedCounterRows, selectedExtraRows, selectedPackage.pricePerGuest, shishaCount]);
+    const dessertSurcharge = hasRabriFalooda ? rabriFaloodaRate * guestCount : 0;
+    const logistics = selectedDeliveryArea?.charge ?? 0;
+    const knownTotal = base !== null && guestCount >= 20 && counters !== null && selectedDeliveryArea
+      ? base + extras + counters + shisha + dessertSurcharge + logistics
+      : null;
+    return { base, extras, counters, shisha, dessertSurcharge, logistics, knownTotal };
+  }, [guestCount, hasRabriFalooda, rabriFaloodaRate, selectedCounterRows, selectedDeliveryArea, selectedExtraRows, selectedPackage.pricePerGuest, shishaCount]);
 
   const toggleSelection = (slotId: string, item: string, max: number) => {
     setSelections((current) => {
@@ -197,9 +215,9 @@ export function CateringBuilder() {
   };
 
   const menuSummary = useMemo(() => {
-    if (isCustomMenu) return customSelectedSections.map((section) => `${section.label}: ${section.selectedItems.join(", ")}`).join("\n");
-    if (selectedPackage.fixedItems) return selectedPackage.fixedItems.join(", ");
-    return selectedPackage.slots.map((slot) => `${slot.label}: ${(selections[slot.id] ?? []).join(", ") || "Not selected"}`).join("\n");
+    if (isCustomMenu) return customSelectedSections.map((section) => `${section.label}: ${section.selectedItems.map(describeMenuItem).join(", ")}`).join("\n");
+    if (selectedPackage.fixedItems) return selectedPackage.fixedItems.map(describeMenuItem).join(", ");
+    return selectedPackage.slots.map((slot) => `${slot.label}: ${(selections[slot.id] ?? []).map(describeMenuItem).join(", ") || "Not selected"}`).join("\n");
   }, [customSelectedSections, isCustomMenu, selectedPackage, selections]);
 
   const whatsappMessage = useMemo(() => {
@@ -213,12 +231,13 @@ export function CateringBuilder() {
       "Menu selections:",
     ];
     if (isCustomMenu) {
-      customSelectedSections.forEach((section) => lines.push(`${section.label}: ${section.selectedItems.join(", ")}`));
+      customSelectedSections.forEach((section) => lines.push(`${section.label}: ${section.selectedItems.map(describeMenuItem).join(", ")}`));
     } else if (selectedPackage.fixedItems) {
-      lines.push(`Included: ${selectedPackage.fixedItems.join(", ")}`);
+      lines.push(`Included: ${selectedPackage.fixedItems.map(describeMenuItem).join(", ")}`);
     } else {
-      selectedPackage.slots.forEach((slot) => lines.push(`${slot.label}: ${(selections[slot.id] ?? []).join(", ") || "-"}`));
+      selectedPackage.slots.forEach((slot) => lines.push(`${slot.label}: ${(selections[slot.id] ?? []).map(describeMenuItem).join(", ") || "-"}`));
     }
+    if (estimate.dessertSurcharge > 0) lines.push(`Rabri Falooda supplement: AED ${rabriFaloodaRate} per guest (AED ${formatMoney(estimate.dessertSurcharge)})`);
     lines.push("");
     lines.push(`Live counters: ${selectedCounterRows.length ? selectedCounterRows.map((counter) => `${counter?.name}${counter?.choices && counterChoices[counter.id] ? ` (${counterChoices[counter.id]})` : ""}`).join(", ") : "None"}`);
     lines.push(`Service extras: ${selectedExtraRows.length ? selectedExtraRows.map((extra) => extra?.name).join(", ") : "None"}`);
@@ -229,7 +248,9 @@ export function CateringBuilder() {
     lines.push(`Event type: ${details.eventType || "-"}`);
     lines.push(`Event date: ${details.date || "-"}`);
     lines.push(`Preferred time: ${details.time || "-"}`);
-    lines.push(`Location: ${details.location || "-"}`);
+    lines.push(`Delivery area: ${selectedDeliveryArea?.name ?? "-"}`);
+    lines.push(`Venue / address: ${details.location || "-"}`);
+    if (selectedDeliveryArea) lines.push(`Indicative logistics charge: AED ${formatMoney(selectedDeliveryArea.charge)} (subject to confirmation for the exact location)`);
     if (details.notes.trim()) lines.push(`Notes: ${details.notes.trim()}`);
     lines.push("");
     lines.push(`Name: ${details.name || "-"}`);
@@ -242,7 +263,7 @@ export function CateringBuilder() {
     else if (guestCount === 25 && selectedCounterRows.length) lines.push("Estimate: Live-counter charge at exactly 25 guests to be confirmed.");
     lines.push("Please confirm availability, final pricing, setup and delivery details.");
     return lines.join("\n");
-  }, [additionalHours, additionalWaiters, counterChoices, customSelectedSections, details, estimate.knownTotal, guestCount, isCustomMenu, selectedCounterRows, selectedExtraRows, selectedPackage, selections, shishaCount, shishaFlavours]);
+  }, [additionalHours, additionalWaiters, counterChoices, customSelectedSections, details, estimate.dessertSurcharge, estimate.knownTotal, guestCount, isCustomMenu, rabriFaloodaRate, selectedCounterRows, selectedDeliveryArea, selectedExtraRows, selectedPackage, selections, shishaCount, shishaFlavours]);
 
   const whatsappUrl = `https://wa.me/${cateringPhone}?text=${encodeURIComponent(whatsappMessage)}`;
 
@@ -266,6 +287,8 @@ export function CateringBuilder() {
         quote_only: Boolean(pkg.quoteOnly),
         fixed_items: pkg.fixedItems ?? null,
         slots: pkg.slots.map((slot) => ({ id: slot.id, label: slot.label, count: slot.count, options: selectionGroups[slot.groupId].items })),
+        menu_item_surcharges_aed_per_guest: menuItemSurcharges,
+        logistics_charges_aed_per_order: logisticsAreas.map((area) => ({ area: area.name, charge: area.charge })),
         custom_menu_sections: pkg.quoteOnly ? menuSections.map((section) => ({ id: section.id, label: section.label, items: section.items })) : null,
       })),
     });
@@ -317,10 +340,10 @@ export function CateringBuilder() {
       description: "Read the package, menu selections, add-ons, event details and current estimate staged in the visible catering builder.",
       inputSchema: { type: "object", properties: {}, additionalProperties: false },
       annotations: { readOnlyHint: true, untrustedContentHint: false },
-      execute: () => ({ package: selectedPackage.name, guests: guestCount, menu: menuSummary, live_counters: selectedCounterRows.map((counter) => counter?.name), service_extras: selectedExtraRows.map((extra) => extra?.name), event: details, indicative_known_total_aed: estimate.knownTotal }),
+      execute: () => ({ package: selectedPackage.name, guests: guestCount, menu: menuSummary, live_counters: selectedCounterRows.map((counter) => counter?.name), service_extras: selectedExtraRows.map((extra) => extra?.name), event: details, delivery_area: selectedDeliveryArea?.name ?? null, logistics_charge_aed: estimate.logistics, rabri_falooda_surcharge_aed: estimate.dessertSurcharge, indicative_known_total_aed: estimate.knownTotal }),
     });
     return () => lifecycle.abort();
-  }, [details, estimate.knownTotal, guestCount, menuSummary, selectedCounterRows, selectedExtraRows, selectedPackage]);
+  }, [details, estimate.dessertSurcharge, estimate.knownTotal, estimate.logistics, guestCount, menuSummary, selectedCounterRows, selectedDeliveryArea, selectedExtraRows, selectedPackage]);
 
   const goNext = () => setStep((current) => Math.min(4, current + 1));
   const goBack = () => setStep((current) => Math.max(0, current - 1));
@@ -520,7 +543,8 @@ export function CateringBuilder() {
               <label><FieldLabel required>Event type</FieldLabel><Select value={details.eventType} onValueChange={(value) => setDetails({ ...details, eventType: value })}><SelectTrigger><SelectValue placeholder="Select event type" /></SelectTrigger><SelectContent><SelectItem value="Corporate event">Corporate event</SelectItem><SelectItem value="Private party">Private party</SelectItem><SelectItem value="Wedding function">Wedding function</SelectItem><SelectItem value="Community event">Community event</SelectItem><SelectItem value="School or university event">School or university event</SelectItem><SelectItem value="Other">Other</SelectItem></SelectContent></Select></label>
               <label><FieldLabel required>Event date</FieldLabel><div className="input-with-icon"><CalendarDays /><Input value={details.date} onChange={(event) => setDetails({ ...details, date: event.target.value })} type="date" /></div></label>
               <label><FieldLabel required>Preferred service time</FieldLabel><div className="input-with-icon"><Clock3 /><Input value={details.time} onChange={(event) => setDetails({ ...details, time: event.target.value })} type="time" /></div></label>
-              <label className="span-2"><FieldLabel required>Event location</FieldLabel><div className="input-with-icon"><MapPin /><Input value={details.location} onChange={(event) => setDetails({ ...details, location: event.target.value })} placeholder="Area, venue and emirate" autoComplete="street-address" /></div></label>
+              <label><FieldLabel required>Delivery area</FieldLabel><Select value={details.deliveryArea} onValueChange={(value) => setDetails({ ...details, deliveryArea: value })}><SelectTrigger><SelectValue placeholder="Select delivery area" /></SelectTrigger><SelectContent>{logisticsAreas.map((area) => <SelectItem value={area.id} key={area.id}>{area.name} — AED {formatMoney(area.charge)}</SelectItem>)}</SelectContent></Select><small className="field-help">{selectedDeliveryArea ? `Indicative AED ${formatMoney(selectedDeliveryArea.charge)} logistics charge. The team will confirm it after reviewing the exact location.` : "Select an area to add the indicative logistics charge."}</small></label>
+              <label className="span-2"><FieldLabel required>Venue / exact address</FieldLabel><div className="input-with-icon"><MapPin /><Input value={details.location} onChange={(event) => setDetails({ ...details, location: event.target.value })} placeholder="Area, venue, building or villa, and access notes" autoComplete="street-address" /></div></label>
               <label className="span-2"><FieldLabel>Notes, allergies or setup requests</FieldLabel><Textarea value={details.notes} onChange={(event) => setDetails({ ...details, notes: event.target.value })} placeholder="Tell us about dietary needs, venue access, serving preferences or anything else the team should know." rows={4} /></label>
             </div>
             {guestCount > 0 && guestCount < 20 ? <div className="counter-note"><strong>Under 20 guests:</strong> the PDF package prices do not apply automatically; the team will send a tailored quote.</div> : null}
@@ -537,9 +561,9 @@ export function CateringBuilder() {
             <div className="review-layout">
               <div className="review-stack">
                 <section className="review-card"><div className="review-card-heading"><h3>Package</h3><button onClick={() => setStep(0)}>Edit</button></div><strong className="review-title">{selectedPackage.name}</strong><p>{selectedPackage.pricePerGuest === null ? "Tailored quotation" : `AED ${selectedPackage.pricePerGuest} per guest`} · {guestCount} guests</p></section>
-                <section className="review-card"><div className="review-card-heading"><h3>Menu</h3><button onClick={() => setStep(1)}>Edit</button></div>{isCustomMenu ? customSelectedSections.map((section) => <div className="review-row" key={section.id}><span>{section.label}</span><strong>{section.selectedItems.join(", ")}</strong></div>) : selectedPackage.fixedItems ? <p>{selectedPackage.fixedItems.join(" · ")}</p> : selectedPackage.slots.map((slot) => <div className="review-row" key={slot.id}><span>{slot.label}</span><strong>{(selections[slot.id] ?? []).join(", ")}</strong></div>)}</section>
+                <section className="review-card"><div className="review-card-heading"><h3>Menu</h3><button onClick={() => setStep(1)}>Edit</button></div>{isCustomMenu ? customSelectedSections.map((section) => <div className="review-row" key={section.id}><span>{section.label}</span><strong>{section.selectedItems.map(describeMenuItem).join(", ")}</strong></div>) : selectedPackage.fixedItems ? <p>{selectedPackage.fixedItems.map(describeMenuItem).join(" · ")}</p> : selectedPackage.slots.map((slot) => <div className="review-row" key={slot.id}><span>{slot.label}</span><strong>{(selections[slot.id] ?? []).map(describeMenuItem).join(", ")}</strong></div>)}</section>
                 <section className="review-card"><div className="review-card-heading"><h3>Add-ons</h3><button onClick={() => setStep(2)}>Edit</button></div><p>{selectedCounterRows.length ? selectedCounterRows.map((counter) => counter?.name).join(" · ") : "No live counters selected"}</p><p>{selectedExtraRows.length ? selectedExtraRows.map((extra) => extra?.name).join(" · ") : "No service extras selected"}</p>{shishaCount ? <p>{shishaCount} premium shishas</p> : null}</section>
-                <section className="review-card"><div className="review-card-heading"><h3>Event</h3><button onClick={() => setStep(3)}>Edit</button></div><div className="review-row"><span>Date and time</span><strong>{details.date} · {details.time}</strong></div><div className="review-row"><span>Location</span><strong>{details.location}</strong></div><div className="review-row"><span>Contact</span><strong>{details.name} · {details.mobile}</strong></div></section>
+                <section className="review-card"><div className="review-card-heading"><h3>Event</h3><button onClick={() => setStep(3)}>Edit</button></div><div className="review-row"><span>Date and time</span><strong>{details.date} · {details.time}</strong></div><div className="review-row"><span>Delivery area</span><strong>{selectedDeliveryArea?.name} · indicative AED {formatMoney(estimate.logistics)}</strong></div><div className="review-row"><span>Venue / address</span><strong>{details.location}</strong></div><div className="review-row"><span>Contact</span><strong>{details.name} · {details.mobile}</strong></div></section>
               </div>
               <aside className="estimate-card">
                 <p className="eyebrow">{isCustomMenu ? "Tailored quotation" : "Indicative estimate"}</p>
@@ -547,8 +571,10 @@ export function CateringBuilder() {
                 {estimate.counters !== 0 ? <div className="estimate-row"><span>Live counters</span><strong>{estimate.counters === null ? "Confirm at 25 guests" : `AED ${formatMoney(estimate.counters)}`}</strong></div> : null}
                 {estimate.extras > 0 ? <div className="estimate-row"><span>Service extras</span><strong>AED {formatMoney(estimate.extras)}</strong></div> : null}
                 {estimate.shisha > 0 ? <div className="estimate-row"><span>Shisha service</span><strong>AED {formatMoney(estimate.shisha)}</strong></div> : null}
-                <div className="estimate-total"><span>Known total</span><strong>{estimate.knownTotal === null ? "Price on request" : `AED ${formatMoney(estimate.knownTotal)}`}</strong></div>
-                <p className="estimate-disclaimer">This is an enquiry estimate, not an invoice. Final pricing, taxes if applicable, availability, transport, staffing and setup are confirmed by the catering team.</p>
+                {estimate.dessertSurcharge > 0 ? <div className="estimate-row"><span>Rabri Falooda (+AED {rabriFaloodaRate}/guest)</span><strong>AED {formatMoney(estimate.dessertSurcharge)}</strong></div> : null}
+                {estimate.logistics > 0 ? <div className="estimate-row"><span>Indicative logistics</span><strong>AED {formatMoney(estimate.logistics)}</strong></div> : null}
+                <div className="estimate-total"><span>Indicative total</span><strong>{estimate.knownTotal === null ? "Price on request" : `AED ${formatMoney(estimate.knownTotal)}`}</strong></div>
+                <p className="estimate-disclaimer">This is an enquiry estimate, not an invoice. The logistics charge may change after the team confirms the exact location. Final pricing, taxes if applicable, availability, staffing and setup are confirmed by the catering team.</p>
                 <Button className="whatsapp-action" size="lg" disabled={!menuComplete || !eventComplete} onClick={() => setWhatsappOpen(true)}><MessageCircle /> Prepare WhatsApp enquiry</Button>
               </aside>
             </div>
@@ -573,7 +599,7 @@ export function CateringBuilder() {
           {filteredMenu.map((section) => {
             const query = menuSearch.trim().toLowerCase();
             const visibleItems = query ? section.items.filter((item) => item.toLowerCase().includes(query) || section.label.toLowerCase().includes(query)) : section.items;
-            return <AccordionItem value={section.id} key={section.id}><AccordionTrigger><span><b>{section.label}</b><small>{section.dietary === "non-veg" ? "Non-vegetarian" : "Vegetarian"} · {visibleItems.length} items</small></span></AccordionTrigger><AccordionContent><div className="menu-item-cloud">{visibleItems.map((item) => <span key={item}>{item}</span>)}</div></AccordionContent></AccordionItem>;
+            return <AccordionItem value={section.id} key={section.id}><AccordionTrigger><span><b>{section.label}</b><small>{section.dietary === "non-veg" ? "Non-vegetarian" : "Vegetarian"} · {visibleItems.length} items</small></span></AccordionTrigger><AccordionContent><div className="menu-item-cloud">{visibleItems.map((item) => <span className={menuItemSurcharges[item] ? "has-surcharge" : undefined} key={item}>{item}{menuItemSurcharges[item] ? <small>+ AED {menuItemSurcharges[item]} / guest</small> : null}</span>)}</div></AccordionContent></AccordionItem>;
           })}
         </Accordion>
         {filteredMenu.length === 0 ? <div className="empty-menu">No menu items match your search.</div> : null}
@@ -581,7 +607,7 @@ export function CateringBuilder() {
 
       <section className="terms-section">
         <div><p className="eyebrow">Good to know</p><h2>Clear terms before you enquire</h2></div>
-        <ul><li>Standard package pricing applies for a minimum of 20 guests; smaller events are quoted separately.</li><li>Premium catering setup with biodegradable disposable cutlery is included.</li><li>All live counters run for 3 hours. Additional hours and waiters are chargeable.</li><li>Traditional chaat-cart setup adds AED 250.</li><li>Final pricing and availability are confirmed by the Khau Galli team.</li></ul>
+        <ul><li>Standard package pricing applies for a minimum of 20 guests; smaller events are quoted separately.</li><li>Indicative logistics charges are Dubai AED 250, Abu Dhabi AED 500, Sharjah AED 250, Ajman AED 500, Al Ain AED 750 and Fujairah AED 1,000. The final charge may change after the team confirms the exact location.</li><li>Rabri Falooda adds AED 10 per guest to the selected package.</li><li>Premium catering setup with biodegradable disposable cutlery is included.</li><li>All live counters run for 3 hours. Additional hours and waiters are chargeable.</li><li>Traditional chaat-cart setup adds AED 250.</li><li>Final pricing and availability are confirmed by the Khau Galli team.</li></ul>
       </section>
 
       <footer>
