@@ -121,7 +121,7 @@ function SelectionPill({ item, checked, disabled, onToggle }: { item: string; ch
 
 export function CateringBuilder() {
   const [step, setStep] = useState(0);
-  const [packageId, setPackageId] = useState("street-food-delights");
+  const [packageId, setPackageId] = useState("");
   const [selections, setSelections] = useState<Selections>({});
   const [selectedCounters, setSelectedCounters] = useState<string[]>([]);
   const [counterChoices, setCounterChoices] = useState<Record<string, string>>({});
@@ -136,22 +136,22 @@ export function CateringBuilder() {
   const [menuSearch, setMenuSearch] = useState("");
   const [menuFilter, setMenuFilter] = useState<"all" | "veg" | "non-veg">("all");
 
-  const selectedPackage = cateringPackages.find((pkg) => pkg.id === packageId) ?? cateringPackages[0];
+  const selectedPackage = cateringPackages.find((pkg) => pkg.id === packageId);
   const guestCount = Math.max(0, Number(details.guests) || 0);
   const selectedDeliveryArea = logisticsAreas.find((area) => area.id === details.deliveryArea);
-  const isCustomMenu = selectedPackage.id === "build-your-own";
+  const isCustomMenu = selectedPackage?.id === "build-your-own";
   const customSelectedSections = menuSections.map((section) => ({
     ...section,
     selectedItems: selections[customSelectionKey(section.id)] ?? [],
   })).filter((section) => section.selectedItems.length > 0);
   const customSelectionCount = customSelectedSections.reduce((sum, section) => sum + section.selectedItems.length, 0);
-  const hasRabriFalooda = (selectedPackage.fixedItems?.includes("Rabri Falooda") ?? false)
+  const hasRabriFalooda = (selectedPackage?.fixedItems?.includes("Rabri Falooda") ?? false)
     || Object.values(selections).some((items) => items.includes("Rabri Falooda"));
   const rabriFaloodaRate = menuItemSurcharges["Rabri Falooda"];
 
-  const menuComplete = isCustomMenu
+  const menuComplete = Boolean(selectedPackage) && (isCustomMenu
     ? customSelectionCount > 0
-    : selectedPackage.slots.every((slot) => (selections[slot.id] ?? []).length === slot.count);
+    : selectedPackage?.slots.every((slot) => (selections[slot.id] ?? []).length === slot.count));
   const eventComplete = details.name.trim().length >= 2
     && details.mobile.replace(/\D/g, "").length >= 7
     && guestCount > 0
@@ -162,7 +162,7 @@ export function CateringBuilder() {
   const selectedExtraRows = selectedExtras.map((id) => serviceExtras.find((extra) => extra.id === id)).filter(Boolean);
 
   const estimate = useMemo(() => {
-    const base = selectedPackage.pricePerGuest === null ? null : selectedPackage.pricePerGuest * guestCount;
+    const base = selectedPackage?.pricePerGuest == null ? null : selectedPackage.pricePerGuest * guestCount;
     const extras = selectedExtraRows.reduce((sum, extra) => {
       if (!extra) return sum;
       return sum + (extra.priceType === "per-guest" ? extra.price * guestCount : extra.price);
@@ -180,7 +180,7 @@ export function CateringBuilder() {
       ? base + extras + counters + shisha + dessertSurcharge + logistics
       : null;
     return { base, extras, counters, shisha, dessertSurcharge, logistics, knownTotal };
-  }, [guestCount, hasRabriFalooda, rabriFaloodaRate, selectedCounterRows, selectedDeliveryArea, selectedExtraRows, selectedPackage.pricePerGuest, shishaCount]);
+  }, [guestCount, hasRabriFalooda, rabriFaloodaRate, selectedCounterRows, selectedDeliveryArea, selectedExtraRows, selectedPackage?.pricePerGuest, shishaCount]);
 
   const toggleSelection = (slotId: string, item: string, max: number) => {
     setSelections((current) => {
@@ -215,12 +215,14 @@ export function CateringBuilder() {
   };
 
   const menuSummary = useMemo(() => {
+    if (!selectedPackage) return "";
     if (isCustomMenu) return customSelectedSections.map((section) => `${section.label}: ${section.selectedItems.map(describeMenuItem).join(", ")}`).join("\n");
     if (selectedPackage.fixedItems) return selectedPackage.fixedItems.map(describeMenuItem).join(", ");
     return selectedPackage.slots.map((slot) => `${slot.label}: ${(selections[slot.id] ?? []).map(describeMenuItem).join(", ") || "Not selected"}`).join("\n");
   }, [customSelectedSections, isCustomMenu, selectedPackage, selections]);
 
   const whatsappMessage = useMemo(() => {
+    if (!selectedPackage) return "";
     const lines = [
       "Khau Galli Catering Enquiry",
       "",
@@ -340,12 +342,14 @@ export function CateringBuilder() {
       description: "Read the package, menu selections, add-ons, event details and current estimate staged in the visible catering builder.",
       inputSchema: { type: "object", properties: {}, additionalProperties: false },
       annotations: { readOnlyHint: true, untrustedContentHint: false },
-      execute: () => ({ package: selectedPackage.name, guests: guestCount, menu: menuSummary, live_counters: selectedCounterRows.map((counter) => counter?.name), service_extras: selectedExtraRows.map((extra) => extra?.name), event: details, delivery_area: selectedDeliveryArea?.name ?? null, logistics_charge_aed: estimate.logistics, rabri_falooda_surcharge_aed: estimate.dessertSurcharge, indicative_known_total_aed: estimate.knownTotal }),
+      execute: () => ({ package: selectedPackage?.name ?? null, guests: guestCount, menu: menuSummary, live_counters: selectedCounterRows.map((counter) => counter?.name), service_extras: selectedExtraRows.map((extra) => extra?.name), event: details, delivery_area: selectedDeliveryArea?.name ?? null, logistics_charge_aed: estimate.logistics, rabri_falooda_surcharge_aed: estimate.dessertSurcharge, indicative_known_total_aed: estimate.knownTotal }),
     });
     return () => lifecycle.abort();
   }, [details, estimate.dessertSurcharge, estimate.knownTotal, estimate.logistics, guestCount, menuSummary, selectedCounterRows, selectedDeliveryArea, selectedExtraRows, selectedPackage]);
 
-  const goNext = () => setStep((current) => Math.min(4, current + 1));
+  const goNext = () => {
+    if (selectedPackage) setStep((current) => Math.min(4, current + 1));
+  };
   const goBack = () => setStep((current) => Math.max(0, current - 1));
 
   const filteredMenu = menuSections.filter((section) => {
@@ -386,7 +390,7 @@ export function CateringBuilder() {
       <section className="builder-shell" id="build">
         <nav className="step-nav" aria-label="Catering enquiry steps">
           {steps.map((label, index) => (
-            <button key={label} type="button" className={`${step === index ? "is-active" : ""} ${step > index ? "is-complete" : ""}`} onClick={() => setStep(index)}>
+            <button key={label} type="button" className={`${step === index ? "is-active" : ""} ${step > index ? "is-complete" : ""}`} disabled={index > 0 && !selectedPackage} onClick={() => { if (index === 0 || selectedPackage) setStep(index); }}>
               <span>{step > index ? <Check aria-hidden="true" /> : index + 1}</span>
               {label}
             </button>
@@ -411,11 +415,11 @@ export function CateringBuilder() {
                 </label>
               ))}
             </RadioGroup>
-            <div className="step-actions"><span /><Button className="primary-action" size="lg" onClick={goNext}>Choose menu <ChevronRight /></Button></div>
+            <div className="step-actions"><span>{!selectedPackage ? "Select a package to view menu options." : null}</span><Button className="primary-action" size="lg" disabled={!selectedPackage} onClick={goNext}>Choose menu <ChevronRight /></Button></div>
           </div>
         ) : null}
 
-        {step === 1 ? (
+        {step === 1 && selectedPackage ? (
           <div className="step-panel">
             <div className="builder-intro">
               <div><p className="eyebrow">Step 2 of 5</p><h2>{isCustomMenu ? "Build the menu your event needs" : "Choose every included dish"}</h2></div>
@@ -472,7 +476,7 @@ export function CateringBuilder() {
           </div>
         ) : null}
 
-        {step === 2 ? (
+        {step === 2 && selectedPackage ? (
           <div className="step-panel">
             <div className="builder-intro">
               <div><p className="eyebrow">Step 3 of 5</p><h2>Add live counters and service extras</h2></div>
@@ -529,7 +533,7 @@ export function CateringBuilder() {
           </div>
         ) : null}
 
-        {step === 3 ? (
+        {step === 3 && selectedPackage ? (
           <div className="step-panel event-step">
             <div className="builder-intro">
               <div><p className="eyebrow">Step 4 of 5</p><h2>Tell us about the event</h2></div>
@@ -552,7 +556,7 @@ export function CateringBuilder() {
           </div>
         ) : null}
 
-        {step === 4 ? (
+        {step === 4 && selectedPackage ? (
           <div className="step-panel review-step">
             <div className="builder-intro">
               <div><p className="eyebrow">Step 5 of 5</p><h2>Review your catering brief</h2></div>
@@ -584,7 +588,7 @@ export function CateringBuilder() {
       </section>
 
       <section className="counter-showcase">
-        <div className="counter-showcase-copy"><p className="eyebrow">Live-counter add-ons</p><h2>Freshly made. Served with a little theatre.</h2><p>Add dosa, pasta, momos, jalebi, kulfi, mocktails and more to any package or custom menu.</p><a href="#build" onClick={() => setStep(2)}>Explore counter options</a></div>
+        <div className="counter-showcase-copy"><p className="eyebrow">Live-counter add-ons</p><h2>Freshly made. Served with a little theatre.</h2><p>Add dosa, pasta, momos, jalebi, kulfi, mocktails and more to any package or custom menu.</p><a href="#build" onClick={() => setStep(selectedPackage ? 2 : 0)}>Explore counter options</a></div>
         <div className="showcase-image large"><Image src="/catering/live-counter.webp" alt="Khau Galli live food counter setup" fill sizes="(max-width: 800px) 100vw, 38vw" /></div>
         <div className="showcase-image small"><Image src="/catering/chaat-service.webp" alt="Khau Galli chaat service at an event" fill sizes="(max-width: 800px) 100vw, 24vw" /></div>
       </section>
