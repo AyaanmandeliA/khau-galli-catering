@@ -325,8 +325,24 @@ export const serviceExtras = [
 ];
 
 export const menuItemSurcharges: Record<string, number> = {
+  "Rabri": 10,
+  "Mix Fruit Cream": 10,
+  "Dry Fruit Cream": 10,
+  "Mango Cream": 10,
+  "Sitaphal Cream": 10,
+  "Strawberry Cream": 10,
+  "Chikoo Cream": 10,
+  "Kesar Badam Pista Cream": 10,
+  "Kaju Anjeer Cream": 10,
+  "Kulfi Stick Small": 10,
+  "Ice Creams": 10,
   "Rabri Falooda": 10,
 };
+
+export function getMenuItemSurcharges(items: string[]) {
+  return [...new Set(items)].filter((item) => menuItemSurcharges[item] > 0)
+    .map((item) => ({ item, rate: menuItemSurcharges[item] }));
+}
 
 export const logisticsAreas = [
   { id: "dubai", name: "Dubai", charge: 250 },

@@ -40,6 +40,7 @@ import {
   logisticsAreas,
   locations,
   menuItemSurcharges,
+  getMenuItemSurcharges,
   menuSections,
   paanShishaFlavours,
   fruitShishaFlavours,
@@ -145,9 +146,11 @@ export function CateringBuilder() {
     selectedItems: selections[customSelectionKey(section.id)] ?? [],
   })).filter((section) => section.selectedItems.length > 0);
   const customSelectionCount = customSelectedSections.reduce((sum, section) => sum + section.selectedItems.length, 0);
-  const hasRabriFalooda = (selectedPackage?.fixedItems?.includes("Rabri Falooda") ?? false)
-    || Object.values(selections).some((items) => items.includes("Rabri Falooda"));
-  const rabriFaloodaRate = menuItemSurcharges["Rabri Falooda"];
+  const selectedMenuSurcharges = getMenuItemSurcharges([
+    ...(selectedPackage?.fixedItems ?? []),
+    ...Object.values(selections).flat(),
+  ]);
+  const menuSurchargeRate = selectedMenuSurcharges.reduce((sum, row) => sum + row.rate, 0);
 
   const menuComplete = Boolean(selectedPackage) && (isCustomMenu
     ? customSelectionCount > 0
@@ -174,13 +177,13 @@ export function CateringBuilder() {
       else counters = null;
     }
     const shisha = shishaCount >= 5 ? shishaCount * 120 : 0;
-    const dessertSurcharge = hasRabriFalooda ? rabriFaloodaRate * guestCount : 0;
+    const dessertSurcharge = menuSurchargeRate * guestCount;
     const logistics = selectedDeliveryArea?.charge ?? 0;
     const knownTotal = base !== null && guestCount >= 20 && counters !== null && selectedDeliveryArea
       ? base + extras + counters + shisha + dessertSurcharge + logistics
       : null;
     return { base, extras, counters, shisha, dessertSurcharge, logistics, knownTotal };
-  }, [guestCount, hasRabriFalooda, rabriFaloodaRate, selectedCounterRows, selectedDeliveryArea, selectedExtraRows, selectedPackage?.pricePerGuest, shishaCount]);
+  }, [guestCount, menuSurchargeRate, selectedCounterRows, selectedDeliveryArea, selectedExtraRows, selectedPackage?.pricePerGuest, shishaCount]);
 
   const toggleSelection = (slotId: string, item: string, max: number) => {
     setSelections((current) => {
@@ -239,7 +242,7 @@ export function CateringBuilder() {
     } else {
       selectedPackage.slots.forEach((slot) => lines.push(`${slot.label}: ${(selections[slot.id] ?? []).map(describeMenuItem).join(", ") || "-"}`));
     }
-    if (estimate.dessertSurcharge > 0) lines.push(`Rabri Falooda supplement: AED ${rabriFaloodaRate} per guest (AED ${formatMoney(estimate.dessertSurcharge)})`);
+    if (guestCount > 0) selectedMenuSurcharges.forEach(({ item, rate }) => lines.push(`${item} supplement: AED ${rate} per guest (AED ${formatMoney(rate * guestCount)})`));
     lines.push("");
     lines.push(`Live counters: ${selectedCounterRows.length ? selectedCounterRows.map((counter) => `${counter?.name}${counter?.choices && counterChoices[counter.id] ? ` (${counterChoices[counter.id]})` : ""}`).join(", ") : "None"}`);
     lines.push(`Service extras: ${selectedExtraRows.length ? selectedExtraRows.map((extra) => extra?.name).join(", ") : "None"}`);
@@ -265,7 +268,7 @@ export function CateringBuilder() {
     else if (guestCount === 25 && selectedCounterRows.length) lines.push("Estimate: Live-counter charge at exactly 25 guests to be confirmed.");
     lines.push("Please confirm availability, final pricing, setup and delivery details.");
     return lines.join("\n");
-  }, [additionalHours, additionalWaiters, counterChoices, customSelectedSections, details, estimate.dessertSurcharge, estimate.knownTotal, guestCount, isCustomMenu, rabriFaloodaRate, selectedCounterRows, selectedDeliveryArea, selectedExtraRows, selectedPackage, selections, shishaCount, shishaFlavours]);
+  }, [additionalHours, additionalWaiters, counterChoices, customSelectedSections, details, estimate.dessertSurcharge, estimate.knownTotal, guestCount, isCustomMenu, selectedMenuSurcharges, selectedCounterRows, selectedDeliveryArea, selectedExtraRows, selectedPackage, selections, shishaCount, shishaFlavours]);
 
   const whatsappUrl = `https://wa.me/${cateringPhone}?text=${encodeURIComponent(whatsappMessage)}`;
 
@@ -342,7 +345,7 @@ export function CateringBuilder() {
       description: "Read the package, menu selections, add-ons, event details and current estimate staged in the visible catering builder.",
       inputSchema: { type: "object", properties: {}, additionalProperties: false },
       annotations: { readOnlyHint: true, untrustedContentHint: false },
-      execute: () => ({ package: selectedPackage?.name ?? null, guests: guestCount, menu: menuSummary, live_counters: selectedCounterRows.map((counter) => counter?.name), service_extras: selectedExtraRows.map((extra) => extra?.name), event: details, delivery_area: selectedDeliveryArea?.name ?? null, logistics_charge_aed: estimate.logistics, rabri_falooda_surcharge_aed: estimate.dessertSurcharge, indicative_known_total_aed: estimate.knownTotal }),
+      execute: () => ({ package: selectedPackage?.name ?? null, guests: guestCount, menu: menuSummary, live_counters: selectedCounterRows.map((counter) => counter?.name), service_extras: selectedExtraRows.map((extra) => extra?.name), event: details, delivery_area: selectedDeliveryArea?.name ?? null, logistics_charge_aed: estimate.logistics, menu_item_surcharges: selectedMenuSurcharges, menu_item_surcharge_aed: estimate.dessertSurcharge, indicative_known_total_aed: estimate.knownTotal }),
     });
     return () => lifecycle.abort();
   }, [details, estimate.dessertSurcharge, estimate.knownTotal, estimate.logistics, guestCount, menuSummary, selectedCounterRows, selectedDeliveryArea, selectedExtraRows, selectedPackage]);
@@ -575,7 +578,7 @@ export function CateringBuilder() {
                 {estimate.counters !== 0 ? <div className="estimate-row"><span>Live counters</span><strong>{estimate.counters === null ? "Confirm at 25 guests" : `AED ${formatMoney(estimate.counters)}`}</strong></div> : null}
                 {estimate.extras > 0 ? <div className="estimate-row"><span>Service extras</span><strong>AED {formatMoney(estimate.extras)}</strong></div> : null}
                 {estimate.shisha > 0 ? <div className="estimate-row"><span>Shisha service</span><strong>AED {formatMoney(estimate.shisha)}</strong></div> : null}
-                {estimate.dessertSurcharge > 0 ? <div className="estimate-row"><span>Rabri Falooda (+AED {rabriFaloodaRate}/guest)</span><strong>AED {formatMoney(estimate.dessertSurcharge)}</strong></div> : null}
+                {guestCount > 0 ? selectedMenuSurcharges.map(({ item, rate }) => <div className="estimate-row" key={item}><span>{item} (+AED {rate}/guest)</span><strong>AED {formatMoney(rate * guestCount)}</strong></div>) : null}
                 {estimate.logistics > 0 ? <div className="estimate-row"><span>Indicative logistics</span><strong>AED {formatMoney(estimate.logistics)}</strong></div> : null}
                 <div className="estimate-total"><span>Indicative total</span><strong>{estimate.knownTotal === null ? "Price on request" : `AED ${formatMoney(estimate.knownTotal)}`}</strong></div>
                 <p className="estimate-disclaimer">This is an enquiry estimate, not an invoice. The logistics charge may change after the team confirms the exact location. Final pricing, taxes if applicable, availability, staffing and setup are confirmed by the catering team.</p>
@@ -611,7 +614,7 @@ export function CateringBuilder() {
 
       <section className="terms-section">
         <div><p className="eyebrow">Good to know</p><h2>Clear terms before you enquire</h2></div>
-        <ul><li>Standard package pricing applies for a minimum of 20 guests; smaller events are quoted separately.</li><li>Indicative logistics charges are Dubai AED 250, Abu Dhabi AED 500, Sharjah AED 250, Ajman AED 500, Al Ain AED 750 and Fujairah AED 1,000. The final charge may change after the team confirms the exact location.</li><li>Rabri Falooda adds AED 10 per guest to the selected package.</li><li>Premium catering setup with biodegradable disposable cutlery is included.</li><li>All live counters run for 3 hours. Additional hours and waiters are chargeable.</li><li>Traditional chaat-cart setup adds AED 250.</li><li>Final pricing and availability are confirmed by the Khau Galli team.</li></ul>
+        <ul><li>Standard package pricing applies for a minimum of 20 guests; smaller events are quoted separately.</li><li>Indicative logistics charges are Dubai AED 250, Abu Dhabi AED 500, Sharjah AED 250, Ajman AED 500, Al Ain AED 750 and Fujairah AED 1,000. The final charge may change after the team confirms the exact location.</li><li>Rabri, all fruit creams, ice creams, Kulfi Stick Small and Rabri Falooda each add AED 10 per guest when selected.</li><li>Premium catering setup with biodegradable disposable cutlery is included.</li><li>All live counters run for 3 hours. Additional hours and waiters are chargeable.</li><li>Traditional chaat-cart setup adds AED 250.</li><li>Final pricing and availability are confirmed by the Khau Galli team.</li></ul>
       </section>
 
       <footer>
