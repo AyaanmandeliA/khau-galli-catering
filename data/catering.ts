@@ -215,7 +215,7 @@ export const cateringPackages: CateringPackage[] = [
   {
     id: "chaat-counter",
     name: "Chaat Counter",
-    pricePerGuest: 40,
+    pricePerGuest: 50,
     description: "The four signature chaats are fixed and served together.",
     dietary: "veg",
     slots: [],
@@ -224,7 +224,7 @@ export const cateringPackages: CateringPackage[] = [
   {
     id: "street-food-delights",
     name: "Street Food Delights",
-    pricePerGuest: 50,
+    pricePerGuest: 60,
     description: "Choose 3 chaats or snacks, 2 street-food favourites and 1 dessert.",
     dietary: "veg",
     slots: [slot("chaat-snacks", "Chaats or snacks", "chaat-snacks", 3), slot("street-food", "Street food", "street-food", 2), slot("dessert", "Dessert", "desserts", 1)],
@@ -232,7 +232,7 @@ export const cateringPackages: CateringPackage[] = [
   {
     id: "veg-basic",
     name: "North Indian / Chinese Veg - Basic",
-    pricePerGuest: 45,
+    pricePerGuest: 55,
     description: "1 starter, 2 veg mains, 1 bread, 1 rice and 1 dessert.",
     dietary: "veg",
     slots: [slot("veg-starter", "Veg starter", "veg-starters", 1), slot("veg-mains", "Veg mains", "veg-mains", 2), slot("bread", "Bread", "breads", 1), slot("rice", "Rice", "rice", 1), slot("dessert", "Dessert", "desserts", 1)],
@@ -240,7 +240,7 @@ export const cateringPackages: CateringPackage[] = [
   {
     id: "non-veg-basic",
     name: "North Indian / Chinese Non-Veg - Basic",
-    pricePerGuest: 55,
+    pricePerGuest: 65,
     description: "1 non-veg starter, 1 non-veg main, 1 veg main, bread, rice and dessert.",
     dietary: "non-veg",
     slots: [slot("non-veg-starter", "Non-veg starter", "non-veg-starters", 1), slot("non-veg-main", "Non-veg main", "non-veg-mains", 1), slot("veg-main", "Veg main", "veg-mains", 1), slot("bread", "Bread", "breads", 1), slot("rice", "Rice", "rice", 1), slot("dessert", "Dessert", "desserts", 1)],
@@ -248,7 +248,7 @@ export const cateringPackages: CateringPackage[] = [
   {
     id: "veg-deluxe",
     name: "North Indian / Chinese Veg - Deluxe",
-    pricePerGuest: 55,
+    pricePerGuest: 65,
     description: "2 starters, 3 veg mains, 1 bread, 1 rice and 1 dessert.",
     dietary: "veg",
     slots: [slot("veg-starters", "Veg starters", "veg-starters", 2), slot("veg-mains", "Veg mains", "veg-mains", 3), slot("bread", "Bread", "breads", 1), slot("rice", "Rice", "rice", 1), slot("dessert", "Dessert", "desserts", 1)],
@@ -256,7 +256,7 @@ export const cateringPackages: CateringPackage[] = [
   {
     id: "non-veg-deluxe",
     name: "North Indian / Chinese Non-Veg - Deluxe",
-    pricePerGuest: 65,
+    pricePerGuest: 75,
     description: "Veg and non-veg starters, 3 mains, bread, biryani and dessert.",
     dietary: "non-veg",
     slots: [slot("veg-starter", "Veg starter", "veg-starters", 1), slot("non-veg-starter", "Non-veg starter", "non-veg-starters", 1), slot("non-veg-main", "Non-veg main", "non-veg-mains", 1), slot("veg-mains", "Veg mains", "veg-mains", 2), slot("bread", "Bread", "breads", 1), slot("non-veg-rice", "Non-veg rice / biryani", "non-veg-rice", 1), slot("dessert", "Dessert", "desserts", 1)],
@@ -264,7 +264,7 @@ export const cateringPackages: CateringPackage[] = [
   {
     id: "ultra",
     name: "North Indian / Chinese Veg & Non-Veg - Ultra",
-    pricePerGuest: 75,
+    pricePerGuest: 85,
     description: "Four starters, 3 mains, bread, biryani and dessert.",
     dietary: "mixed",
     slots: [slot("veg-starters", "Veg starters", "veg-starters", 2), slot("non-veg-starters", "Non-veg starters", "non-veg-starters", 2), slot("non-veg-main", "Non-veg main", "non-veg-mains", 1), slot("veg-mains", "Veg mains", "veg-mains", 2), slot("bread", "Bread", "breads", 1), slot("non-veg-rice", "Non-veg rice / biryani", "non-veg-rice", 1), slot("dessert", "Dessert", "desserts", 1)],
@@ -272,7 +272,7 @@ export const cateringPackages: CateringPackage[] = [
   {
     id: "chaat-main-veg",
     name: "Chaat with Main Course - Veg",
-    pricePerGuest: 75,
+    pricePerGuest: 85,
     description: "A welcome drink, 4 chaats or snacks and a complete veg main course.",
     dietary: "veg",
     slots: [slot("drink", "Welcome drink", "drinks", 1), slot("chaat-snacks", "Chaats or snacks", "chaat-snacks", 4), slot("veg-mains", "Veg mains", "veg-mains", 3), slot("bread", "Bread", "breads", 1), slot("rice", "Rice", "rice", 1), slot("dessert", "Dessert", "desserts", 1)],
@@ -280,7 +280,7 @@ export const cateringPackages: CateringPackage[] = [
   {
     id: "chaat-main-non-veg",
     name: "Chaat with Main Course - Non-Veg",
-    pricePerGuest: 80,
+    pricePerGuest: 90,
     description: "A welcome drink, 4 chaats or snacks, veg and non-veg mains, bread, rice and dessert.",
     dietary: "mixed",
     slots: [slot("drink", "Welcome drink", "drinks", 1), slot("chaat-snacks", "Chaats or snacks", "chaat-snacks", 4), slot("veg-mains", "Veg mains", "veg-mains", 2), slot("non-veg-main", "Non-veg main", "non-veg-mains", 1), slot("bread", "Bread", "breads", 1), slot("rice", "Rice", "rice", 1), slot("dessert", "Dessert", "desserts", 1)],

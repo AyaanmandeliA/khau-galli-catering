@@ -454,7 +454,7 @@ export function CateringBuilder() {
             ) : selectedPackage.fixedItems ? (
               <div className="fixed-menu-card">
                 <CircleCheck aria-hidden="true" />
-                <div><h3>Your Chaat Counter is already set</h3><p>{selectedPackage.fixedItems.join(" · ")}</p><small>These four items are served together at AED 40 per guest.</small></div>
+                <div><h3>Your Chaat Counter is already set</h3><p>{selectedPackage.fixedItems.join(" · ")}</p><small>These four items are served together at AED {selectedPackage.pricePerGuest} per guest.</small></div>
               </div>
             ) : (
               <div className="slot-stack">
