@@ -323,6 +323,7 @@ export type ServiceExtra = {
   price: number;
   priceType: "per-guest" | "fixed";
   startingPrice?: boolean;
+  category?: "event";
   description?: string;
 };
 
@@ -331,9 +332,9 @@ export function formatServiceExtraPrice(extra: ServiceExtra) {
 }
 
 export const serviceExtras: ServiceExtra[] = [
-  { id: "dj-live-singer", name: "DJ or live singer", price: 2000, priceType: "fixed", startingPrice: true },
-  { id: "bartender-cocktail-setup", name: "Bartender & cocktail counter setup", price: 1500, priceType: "fixed", description: "Hard drinks excluded" },
-  { id: "belly-dancer-entertainment", name: "Belly dancer & other entertainment", price: 2000, priceType: "fixed", startingPrice: true },
+  { id: "dj-live-singer", name: "DJ or live singer", price: 2000, priceType: "fixed", category: "event", startingPrice: true },
+  { id: "bartender-cocktail-setup", name: "Bartender & cocktail counter setup", price: 1500, priceType: "fixed", category: "event", description: "Hard drinks excluded" },
+  { id: "belly-dancer-entertainment", name: "Belly dancer & other entertainment", price: 2000, priceType: "fixed", category: "event", startingPrice: true },
   { id: "ceramic-cutlery", name: "Ceramic dinner plates", price: 10, priceType: "per-guest" as const },
   { id: "fancy-cutlery", name: "Fancy serving cutlery for chaat and starter pass-around", price: 10, priceType: "per-guest" as const },
   { id: "continental-supplement", name: "Continental starters supplement", price: 10, priceType: "per-guest" as const },
