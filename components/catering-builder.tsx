@@ -46,6 +46,7 @@ import {
   fruitShishaFlavours,
   selectionGroups,
   serviceExtras,
+  formatServiceExtraPrice,
   type CateringPackage,
 } from "@/data/catering";
 
@@ -164,6 +165,8 @@ export function CateringBuilder() {
   const selectedCounterRows = selectedCounters.map((id) => liveCounters.find((counter) => counter.id === id)).filter(Boolean);
   const selectedExtraRows = selectedExtras.map((id) => serviceExtras.find((extra) => extra.id === id)).filter(Boolean);
 
+  const hasStartingPriceExtras = selectedExtraRows.some((extra) => extra?.startingPrice);
+
   const estimate = useMemo(() => {
     const base = selectedPackage?.pricePerGuest == null ? null : selectedPackage.pricePerGuest * guestCount;
     const extras = selectedExtraRows.reduce((sum, extra) => {
@@ -245,10 +248,10 @@ export function CateringBuilder() {
     if (guestCount > 0) selectedMenuSurcharges.forEach(({ item, rate }) => lines.push(`${item} supplement: AED ${rate} per guest (AED ${formatMoney(rate * guestCount)})`));
     lines.push("");
     lines.push(`Live counters: ${selectedCounterRows.length ? selectedCounterRows.map((counter) => `${counter?.name}${counter?.choices && counterChoices[counter.id] ? ` (${counterChoices[counter.id]})` : ""}`).join(", ") : "None"}`);
-    lines.push(`Service extras: ${selectedExtraRows.length ? selectedExtraRows.map((extra) => extra?.name).join(", ") : "None"}`);
+    lines.push(`Service extras: ${selectedExtraRows.length ? selectedExtraRows.map((extra) => extra ? `${extra.name} (${formatServiceExtraPrice(extra)}${extra.description ? `; ${extra.description}` : ""})` : "").join(", ") : "None"}`);
     if (additionalHours) lines.push("Additional live-counter hours: Requested");
     if (additionalWaiters) lines.push("Additional waiters: Requested");
-    if (shishaCount > 0) lines.push(`Premium shisha service: ${shishaCount} shishas${shishaFlavours.length ? ` - ${shishaFlavours.join(", ")}` : ""}`);
+    if (shishaCount > 0) lines.push(`Premium shisha service: ${shishaCount} shishas at AED 120 each (minimum 5; AED ${formatMoney(shishaCount * 120)})${shishaFlavours.length ? ` - ${shishaFlavours.join(", ")}` : ""}`);
     lines.push("");
     lines.push(`Event type: ${details.eventType || "-"}`);
     lines.push(`Event date: ${details.date || "-"}`);
@@ -263,12 +266,13 @@ export function CateringBuilder() {
     if (details.email.trim()) lines.push(`Email: ${details.email.trim()}`);
     lines.push("");
     if (isCustomMenu) lines.push("Estimate: Custom menu pricing will be prepared by the catering team.");
-    else if (estimate.knownTotal !== null) lines.push(`Indicative known total: AED ${formatMoney(estimate.knownTotal)}`);
+    else if (estimate.knownTotal !== null) lines.push(`Indicative known total: ${hasStartingPriceExtras ? "from " : ""}AED ${formatMoney(estimate.knownTotal)}`);
     else if (guestCount < 20) lines.push("Estimate: Price confirmation required for fewer than 20 guests.");
     else if (guestCount === 25 && selectedCounterRows.length) lines.push("Estimate: Live-counter charge at exactly 25 guests to be confirmed.");
+    if (hasStartingPriceExtras) lines.push("Entertainment rates are starting prices; final quote to be confirmed.");
     lines.push("Please confirm availability, final pricing, setup and delivery details.");
     return lines.join("\n");
-  }, [additionalHours, additionalWaiters, counterChoices, customSelectedSections, details, estimate.dessertSurcharge, estimate.knownTotal, guestCount, isCustomMenu, selectedMenuSurcharges, selectedCounterRows, selectedDeliveryArea, selectedExtraRows, selectedPackage, selections, shishaCount, shishaFlavours]);
+  }, [additionalHours, additionalWaiters, hasStartingPriceExtras, counterChoices, customSelectedSections, details, estimate.dessertSurcharge, estimate.knownTotal, guestCount, isCustomMenu, selectedMenuSurcharges, selectedCounterRows, selectedDeliveryArea, selectedExtraRows, selectedPackage, selections, shishaCount, shishaFlavours]);
 
   const whatsappUrl = `https://wa.me/${cateringPhone}?text=${encodeURIComponent(whatsappMessage)}`;
 
@@ -482,7 +486,7 @@ export function CateringBuilder() {
         {step === 2 && selectedPackage ? (
           <div className="step-panel">
             <div className="builder-intro">
-              <div><p className="eyebrow">Step 3 of 5</p><h2>Add live counters and service extras</h2></div>
+              <div><p className="eyebrow">Step 3 of 5</p><h2>Add live counters, entertainment and extras</h2></div>
               <p>All live counters run for 3 hours. Extra hours and additional waiters are quoted separately.</p>
             </div>
             <div className="counter-note"><strong>Live-counter pricing:</strong> AED 250 per selected counter below 25 guests. Above 25 guests, the listed per-guest rate applies. Exactly 25 guests will be confirmed by the team.</div>
@@ -510,12 +514,12 @@ export function CateringBuilder() {
                 </div>
               </div>
               <aside className="extras-panel">
-                <h3 className="subsection-title">Service extras</h3>
+                <h3 className="subsection-title">Event add-ons & service extras</h3>
                 {serviceExtras.map((extra) => (
                   <label className="extra-row" key={extra.id}>
                     <Checkbox checked={selectedExtras.includes(extra.id)} onCheckedChange={() => toggleListValue(extra.id, setSelectedExtras)} />
-                    <span>{extra.name}</span>
-                    <strong>+ AED {extra.price}{extra.priceType === "per-guest" ? " pp" : ""}</strong>
+                    <span>{extra.name}{extra.description ? <small className="extra-description">{extra.description}</small> : null}</span>
+                    <strong>{formatServiceExtraPrice(extra)}</strong>
                   </label>
                 ))}
                 <label className="extra-row"><Checkbox checked={additionalHours} onCheckedChange={(value) => setAdditionalHours(Boolean(value))} /><span>Additional counter hours</span><strong>On quote</strong></label>
@@ -569,19 +573,19 @@ export function CateringBuilder() {
               <div className="review-stack">
                 <section className="review-card"><div className="review-card-heading"><h3>Package</h3><button onClick={() => setStep(0)}>Edit</button></div><strong className="review-title">{selectedPackage.name}</strong><p>{selectedPackage.pricePerGuest === null ? "Tailored quotation" : `AED ${selectedPackage.pricePerGuest} per guest`} · {guestCount} guests</p></section>
                 <section className="review-card"><div className="review-card-heading"><h3>Menu</h3><button onClick={() => setStep(1)}>Edit</button></div>{isCustomMenu ? customSelectedSections.map((section) => <div className="review-row" key={section.id}><span>{section.label}</span><strong>{section.selectedItems.map(describeMenuItem).join(", ")}</strong></div>) : selectedPackage.fixedItems ? <p>{selectedPackage.fixedItems.map(describeMenuItem).join(" · ")}</p> : selectedPackage.slots.map((slot) => <div className="review-row" key={slot.id}><span>{slot.label}</span><strong>{(selections[slot.id] ?? []).map(describeMenuItem).join(", ")}</strong></div>)}</section>
-                <section className="review-card"><div className="review-card-heading"><h3>Add-ons</h3><button onClick={() => setStep(2)}>Edit</button></div><p>{selectedCounterRows.length ? selectedCounterRows.map((counter) => counter?.name).join(" · ") : "No live counters selected"}</p><p>{selectedExtraRows.length ? selectedExtraRows.map((extra) => extra?.name).join(" · ") : "No service extras selected"}</p>{shishaCount ? <p>{shishaCount} premium shishas</p> : null}</section>
+                <section className="review-card"><div className="review-card-heading"><h3>Add-ons</h3><button onClick={() => setStep(2)}>Edit</button></div><p>{selectedCounterRows.length ? selectedCounterRows.map((counter) => counter?.name).join(" · ") : "No live counters selected"}</p><p>{selectedExtraRows.length ? selectedExtraRows.map((extra) => extra ? `${extra.name} — ${formatServiceExtraPrice(extra)}${extra.description ? ` (${extra.description})` : ""}` : "").join(" · ") : "No service extras selected"}</p>{shishaCount ? <p>{shishaCount} premium shishas · AED 120 each · AED {formatMoney(shishaCount * 120)}</p> : null}</section>
                 <section className="review-card"><div className="review-card-heading"><h3>Event</h3><button onClick={() => setStep(3)}>Edit</button></div><div className="review-row"><span>Date and time</span><strong>{details.date} · {details.time}</strong></div><div className="review-row"><span>Delivery area</span><strong>{selectedDeliveryArea?.name} · indicative AED {formatMoney(estimate.logistics)}</strong></div><div className="review-row"><span>Venue / address</span><strong>{details.location}</strong></div><div className="review-row"><span>Contact</span><strong>{details.name} · {details.mobile}</strong></div></section>
               </div>
               <aside className="estimate-card">
                 <p className="eyebrow">{isCustomMenu ? "Tailored quotation" : "Indicative estimate"}</p>
                 <div className="estimate-row"><span>{isCustomMenu ? "Custom menu" : "Package"}</span><strong>{estimate.base === null ? "Price on request" : `AED ${formatMoney(estimate.base)}`}</strong></div>
                 {estimate.counters !== 0 ? <div className="estimate-row"><span>Live counters</span><strong>{estimate.counters === null ? "Confirm at 25 guests" : `AED ${formatMoney(estimate.counters)}`}</strong></div> : null}
-                {estimate.extras > 0 ? <div className="estimate-row"><span>Service extras</span><strong>AED {formatMoney(estimate.extras)}</strong></div> : null}
+                {estimate.extras > 0 ? <div className="estimate-row"><span>Service extras</span><strong>{hasStartingPriceExtras ? "From " : ""}AED {formatMoney(estimate.extras)}</strong></div> : null}
                 {estimate.shisha > 0 ? <div className="estimate-row"><span>Shisha service</span><strong>AED {formatMoney(estimate.shisha)}</strong></div> : null}
                 {guestCount > 0 ? selectedMenuSurcharges.map(({ item, rate }) => <div className="estimate-row" key={item}><span>{item} (+AED {rate}/guest)</span><strong>AED {formatMoney(rate * guestCount)}</strong></div>) : null}
                 {estimate.logistics > 0 ? <div className="estimate-row"><span>Indicative logistics</span><strong>AED {formatMoney(estimate.logistics)}</strong></div> : null}
-                <div className="estimate-total"><span>Indicative total</span><strong>{estimate.knownTotal === null ? "Price on request" : `AED ${formatMoney(estimate.knownTotal)}`}</strong></div>
-                <p className="estimate-disclaimer">This is an enquiry estimate, not an invoice. The logistics charge may change after the team confirms the exact location. Final pricing, taxes if applicable, availability, staffing and setup are confirmed by the catering team.</p>
+                <div className="estimate-total"><span>Indicative total</span><strong>{estimate.knownTotal === null ? "Price on request" : `${hasStartingPriceExtras ? "From " : ""}AED ${formatMoney(estimate.knownTotal)}`}</strong></div>
+                <p className="estimate-disclaimer">{hasStartingPriceExtras ? "Entertainment rates are starting prices; the total may increase after confirmation. " : ""}This is an enquiry estimate, not an invoice. The logistics charge may change after the team confirms the exact location. Final pricing, taxes if applicable, availability, staffing and setup are confirmed by the catering team.</p>
                 <Button className="whatsapp-action" size="lg" disabled={!menuComplete || !eventComplete} onClick={() => setWhatsappOpen(true)}><MessageCircle /> Prepare WhatsApp enquiry</Button>
               </aside>
             </div>
