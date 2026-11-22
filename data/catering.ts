@@ -320,7 +320,7 @@ export const liveCounters: LiveCounter[] = [
 export type ServiceExtra = {
   id: string;
   name: string;
-  price: number;
+  price: number | null;
   priceType: "per-guest" | "fixed";
   startingPrice?: boolean;
   category?: "event";
@@ -328,10 +328,14 @@ export type ServiceExtra = {
 };
 
 export function formatServiceExtraPrice(extra: ServiceExtra) {
+  if (extra.price === null) return "Price on request";
   return `${extra.startingPrice ? "From " : ""}AED ${extra.price.toLocaleString("en-AE")}${extra.priceType === "per-guest" ? " per guest" : ""}`;
 }
 
 export const serviceExtras: ServiceExtra[] = [
+  { id: "desert-setup", name: "Desert setup", price: null, priceType: "fixed", category: "event" },
+  { id: "farm-setup", name: "Farm setup", price: null, priceType: "fixed", category: "event" },
+  { id: "yacht-rental", name: "Yacht rental", price: null, priceType: "fixed", category: "event" },
   { id: "dj-live-singer", name: "DJ or live singer", price: 2000, priceType: "fixed", category: "event", startingPrice: true },
   { id: "bartender-cocktail-setup", name: "Bartender & cocktail counter setup", price: 1500, priceType: "fixed", category: "event", description: "Hard drinks excluded" },
   { id: "belly-dancer-entertainment", name: "Belly dancer & other entertainment", price: 2000, priceType: "fixed", category: "event", startingPrice: true },

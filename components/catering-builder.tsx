@@ -175,12 +175,14 @@ export function CateringBuilder() {
   const selectedCounterRows = selectedCounters.map((id) => liveCounters.find((counter) => counter.id === id)).filter(Boolean);
   const selectedExtraRows = selectedExtras.map((id) => serviceExtras.find((extra) => extra.id === id)).filter(Boolean);
 
+  const quotedExtras = selectedExtraRows.filter((extra) => extra?.price === null);
+  const hasQuotedExtras = quotedExtras.length > 0;
   const hasStartingPriceExtras = selectedExtraRows.some((extra) => extra?.startingPrice);
 
   const estimate = useMemo(() => {
     const base = selectedPackage?.pricePerGuest == null ? null : selectedPackage.pricePerGuest * guestCount;
     const extras = selectedExtraRows.reduce((sum, extra) => {
-      if (!extra) return sum;
+      if (!extra || extra.price === null) return sum;
       return sum + (extra.priceType === "per-guest" ? extra.price * guestCount : extra.price);
     }, 0);
     let counters: number | null = 0;
@@ -253,7 +255,7 @@ export function CateringBuilder() {
       `Name: ${details.name.trim() || "-"}`,
       `Mobile: ${details.mobile.trim() || "-"}`,
       ...(details.email.trim() ? [`Email: ${details.email.trim()}`] : []),
-      `Indicative total: ${total}`,
+      `Indicative total: ${total}${hasQuotedExtras && estimate.knownTotal !== null ? " (excludes options priced on request)" : ""}`,
       "",
       `Package: ${selectedPackage.name}`,
       selectedPackage.pricePerGuest === null ? "Pricing: Custom quotation requested" : `Catalogue rate: AED ${selectedPackage.pricePerGuest} per guest`,
@@ -307,9 +309,10 @@ export function CateringBuilder() {
     if (guestCount === 25 && selectedCounterRows.length) lines.push("Live-counter charge at exactly 25 guests to be confirmed.");
     if (hasStartingPriceExtras) lines.push("Entertainment rates are starting prices.");
     if (eventCuration) lines.push("Full event curation is quoted separately.");
+    if (hasQuotedExtras) lines.push(`${quotedExtras.map((extra) => extra?.name).join(", ")} ${quotedExtras.length === 1 ? "is" : "are"} priced on request and excluded from the indicative total.`);
     lines.push("Logistics charges are subject to exact-location confirmation.", "", "Please confirm availability, final pricing, setup and delivery details.");
     return lines.join("\n");
-  }, [additionalHours, additionalWaiters, eventCuration, hasStartingPriceExtras, counterChoices, customSelectedSections, details, estimate.knownTotal, guestCount, isCustomMenu, selectedMenuSurcharges, selectedCounterRows, selectedDeliveryArea, selectedExtraRows, selectedPackage, selections, shishaCount, shishaFlavours]);
+  }, [additionalHours, additionalWaiters, eventCuration, hasQuotedExtras, quotedExtras, hasStartingPriceExtras, counterChoices, customSelectedSections, details, estimate.knownTotal, guestCount, isCustomMenu, selectedMenuSurcharges, selectedCounterRows, selectedDeliveryArea, selectedExtraRows, selectedPackage, selections, shishaCount, shishaFlavours]);
 
   const whatsappUrl = `https://wa.me/${cateringPhone}?text=${encodeURIComponent(whatsappMessage)}`;
 
@@ -386,10 +389,10 @@ export function CateringBuilder() {
       description: "Read the package, menu selections, add-ons, event details and current estimate staged in the visible catering builder.",
       inputSchema: { type: "object", properties: {}, additionalProperties: false },
       annotations: { readOnlyHint: true, untrustedContentHint: false },
-      execute: () => ({ package: selectedPackage?.name ?? null, guests: guestCount, menu: menuSummary, live_counters: selectedCounterRows.map((counter) => counter?.name), service_extras: selectedExtraRows.map((extra) => extra?.name), full_event_curation_requested: eventCuration, event: details, delivery_area: selectedDeliveryArea?.name ?? null, logistics_charge_aed: estimate.logistics, menu_item_surcharges: selectedMenuSurcharges, menu_item_surcharge_aed: estimate.dessertSurcharge, indicative_known_total_aed: estimate.knownTotal }),
+      execute: () => ({ package: selectedPackage?.name ?? null, guests: guestCount, menu: menuSummary, live_counters: selectedCounterRows.map((counter) => counter?.name), service_extras: selectedExtraRows.map((extra) => extra?.name), full_event_curation_requested: eventCuration, quote_only_extras: quotedExtras.map((extra) => extra?.name), event: details, delivery_area: selectedDeliveryArea?.name ?? null, logistics_charge_aed: estimate.logistics, menu_item_surcharges: selectedMenuSurcharges, menu_item_surcharge_aed: estimate.dessertSurcharge, indicative_known_total_aed: estimate.knownTotal }),
     });
     return () => lifecycle.abort();
-  }, [eventCuration, details, estimate.dessertSurcharge, estimate.knownTotal, estimate.logistics, guestCount, menuSummary, selectedCounterRows, selectedDeliveryArea, selectedExtraRows, selectedPackage]);
+  }, [eventCuration, quotedExtras, details, estimate.dessertSurcharge, estimate.knownTotal, estimate.logistics, guestCount, menuSummary, selectedCounterRows, selectedDeliveryArea, selectedExtraRows, selectedPackage]);
 
   const goNext = () => {
     if (selectedPackage) setStep((current) => Math.min(4, current + 1));
@@ -434,7 +437,7 @@ export function CateringBuilder() {
       <section className="event-experience" id="event-experience" aria-labelledby="event-experience-title">
         <div className="event-experience-intro">
           <div><p className="eyebrow"><Sparkles aria-hidden="true" /> More than catering</p><h2 id="event-experience-title">Want us to curate your entire event?</h2></div>
-          <p>Let’s design the whole experience. Bring together the music, drinks and entertainment with your Khau Galli catering.</p>
+          <p>Let’s design the whole experience. Choose a desert or farm setup, a yacht rental, music, drinks and entertainment alongside your Khau Galli catering.</p>
         </div>
         <label className="event-curation-request"><Checkbox checked={eventCuration} onCheckedChange={(value) => setEventCuration(Boolean(value))} /><span><strong>Yes, help me curate the entire event</strong><small>Tell us what you have in mind in your enquiry. Scope and pricing are quoted separately.</small></span></label>
         <div className="event-experience-options">
@@ -640,8 +643,9 @@ export function CateringBuilder() {
                 {estimate.shisha > 0 ? <div className="estimate-row"><span>Shisha service</span><strong>AED {formatMoney(estimate.shisha)}</strong></div> : null}
                 {guestCount > 0 ? selectedMenuSurcharges.map(({ item, rate }) => <div className="estimate-row" key={item}><span>{item} (+AED {rate}/guest)</span><strong>AED {formatMoney(rate * guestCount)}</strong></div>) : null}
                 {estimate.logistics > 0 ? <div className="estimate-row"><span>Indicative logistics</span><strong>AED {formatMoney(estimate.logistics)}</strong></div> : null}
-                <div className="estimate-total"><span>Indicative total</span><strong>{estimate.knownTotal === null ? "Price on request" : `${hasStartingPriceExtras ? "From " : ""}AED ${formatMoney(estimate.knownTotal)}`}</strong></div>
-                <p className="estimate-disclaimer">{hasStartingPriceExtras ? "Entertainment rates are starting prices; the total may increase after confirmation. " : ""}{eventCuration ? "Full event curation is quoted separately and is not included in this estimate. " : ""}This is an enquiry estimate, not an invoice. The logistics charge may change after the team confirms the exact location. Final pricing, taxes if applicable, availability, staffing and setup are confirmed by the catering team.</p>
+                {quotedExtras.map((extra) => extra ? <div className="estimate-row" key={extra.id}><span>{extra.name}</span><strong>Price on request</strong></div> : null)}
+                <div className="estimate-total"><span>{hasQuotedExtras ? "Known-price subtotal" : "Indicative total"}</span><strong>{estimate.knownTotal === null ? "Price on request" : `${hasStartingPriceExtras ? "From " : ""}AED ${formatMoney(estimate.knownTotal)}`}</strong></div>
+                <p className="estimate-disclaimer">{hasQuotedExtras ? "Options priced on request are excluded from this subtotal and will be quoted separately. " : ""}{hasStartingPriceExtras ? "Entertainment rates are starting prices; the total may increase after confirmation. " : ""}{eventCuration ? "Full event curation is quoted separately and is not included in this estimate. " : ""}This is an enquiry estimate, not an invoice. The logistics charge may change after the team confirms the exact location. Final pricing, taxes if applicable, availability, staffing and setup are confirmed by the catering team.</p>
                 <Button className="whatsapp-action" size="lg" disabled={!menuComplete || !eventComplete} onClick={() => setWhatsappOpen(true)}><MessageCircle /> Prepare WhatsApp enquiry</Button>
               </aside>
             </div>
