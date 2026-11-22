@@ -239,51 +239,77 @@ export function CateringBuilder() {
 
   const whatsappMessage = useMemo(() => {
     if (!selectedPackage) return "";
+    const eventExtras = selectedExtraRows.filter((extra) => extra?.category === "event");
+    const cateringExtras = selectedExtraRows.filter((extra) => extra?.category !== "event");
+    const date = /^\d{4}-\d{2}-\d{2}$/.test(details.date)
+      ? new Date(`${details.date}T12:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" })
+      : details.date || "-";
+    const [hour, minute] = details.time.split(":").map(Number);
+    const time = details.time ? `${hour % 12 || 12}:${String(minute).padStart(2, "0")} ${hour >= 12 ? "PM" : "AM"}` : "-";
+    const total = estimate.knownTotal === null ? "Price on request" : `${hasStartingPriceExtras ? "from " : ""}AED ${formatMoney(estimate.knownTotal)}`;
     const lines = [
-      "Khau Galli Catering Enquiry",
+      "*Khau Galli Catering Enquiry*",
+      "",
+      `Name: ${details.name.trim() || "-"}`,
+      `Mobile: ${details.mobile.trim() || "-"}`,
+      ...(details.email.trim() ? [`Email: ${details.email.trim()}`] : []),
+      `Indicative total: ${total}`,
       "",
       `Package: ${selectedPackage.name}`,
       selectedPackage.pricePerGuest === null ? "Pricing: Custom quotation requested" : `Catalogue rate: AED ${selectedPackage.pricePerGuest} per guest`,
       `Guests: ${details.guests || "-"}`,
       "",
-      "Menu selections:",
+      "*EVENT DETAILS*",
+      `Event type: ${details.eventType || "-"}`,
+      `Event date: ${date}`,
+      `Preferred time: ${time}`,
+      `Delivery area: ${selectedDeliveryArea?.name ?? "-"}`,
+      `Venue / address: ${details.location.trim() || "-"}`,
     ];
-    if (isCustomMenu) {
-      customSelectedSections.forEach((section) => lines.push(`${section.label}: ${section.selectedItems.map(describeMenuItem).join(", ")}`));
-    } else if (selectedPackage.fixedItems) {
-      lines.push(`Included: ${selectedPackage.fixedItems.map(describeMenuItem).join(", ")}`);
-    } else {
-      selectedPackage.slots.forEach((slot) => lines.push(`${slot.label}: ${(selections[slot.id] ?? []).map(describeMenuItem).join(", ") || "-"}`));
-    }
-    if (guestCount > 0) selectedMenuSurcharges.forEach(({ item, rate }) => lines.push(`${item} supplement: AED ${rate} per guest (AED ${formatMoney(rate * guestCount)})`));
-    lines.push("");
-    lines.push(`Live counters: ${selectedCounterRows.length ? selectedCounterRows.map((counter) => `${counter?.name}${counter?.choices && counterChoices[counter.id] ? ` (${counterChoices[counter.id]})` : ""}`).join(", ") : "None"}`);
-    lines.push(`Service extras: ${selectedExtraRows.length ? selectedExtraRows.map((extra) => extra ? `${extra.name} (${formatServiceExtraPrice(extra)}${extra.description ? `; ${extra.description}` : ""})` : "").join(", ") : "None"}`);
-    if (eventCuration) lines.push("Full event curation: Requested — scope and price to be quoted separately.");
-    if (additionalHours) lines.push("Additional live-counter hours: Requested");
-    if (additionalWaiters) lines.push("Additional waiters: Requested");
-    if (shishaCount > 0) lines.push(`Premium shisha service: ${shishaCount} shishas at AED 120 each (minimum 5; AED ${formatMoney(shishaCount * 120)})${shishaFlavours.length ? ` - ${shishaFlavours.join(", ")}` : ""}`);
-    lines.push("");
-    lines.push(`Event type: ${details.eventType || "-"}`);
-    lines.push(`Event date: ${details.date || "-"}`);
-    lines.push(`Preferred time: ${details.time || "-"}`);
-    lines.push(`Delivery area: ${selectedDeliveryArea?.name ?? "-"}`);
-    lines.push(`Venue / address: ${details.location || "-"}`);
-    if (selectedDeliveryArea) lines.push(`Indicative logistics charge: AED ${formatMoney(selectedDeliveryArea.charge)} (subject to confirmation for the exact location)`);
+    if (selectedDeliveryArea) lines.push(`Indicative logistics charge: AED ${formatMoney(selectedDeliveryArea.charge)}`);
     if (details.notes.trim()) lines.push(`Notes: ${details.notes.trim()}`);
-    lines.push("");
-    lines.push(`Name: ${details.name || "-"}`);
-    lines.push(`Mobile: ${details.mobile || "-"}`);
-    if (details.email.trim()) lines.push(`Email: ${details.email.trim()}`);
-    lines.push("");
-    if (isCustomMenu) lines.push("Estimate: Custom menu pricing will be prepared by the catering team.");
-    else if (estimate.knownTotal !== null) lines.push(`Indicative known total: ${hasStartingPriceExtras ? "from " : ""}AED ${formatMoney(estimate.knownTotal)}`);
-    else if (guestCount < 20) lines.push("Estimate: Price confirmation required for fewer than 20 guests.");
-    else if (guestCount === 25 && selectedCounterRows.length) lines.push("Estimate: Live-counter charge at exactly 25 guests to be confirmed.");
-    if (hasStartingPriceExtras) lines.push("Entertainment rates are starting prices; final quote to be confirmed.");
-    lines.push("Please confirm availability, final pricing, setup and delivery details.");
+
+    if (eventCuration || eventExtras.length || shishaCount > 0) {
+      lines.push("", "*FULL EVENT CURATION*");
+      if (eventCuration) lines.push("Full event curation requested.", "Scope and pricing to be confirmed separately.");
+      eventExtras.forEach((extra) => {
+        if (extra) lines.push("", extra.name, `${formatServiceExtraPrice(extra)}${extra.description ? ` — ${extra.description.charAt(0).toLowerCase()}${extra.description.slice(1)}` : ""}`);
+      });
+      if (shishaCount > 0) {
+        lines.push("", "Premium shisha service", `${shishaCount} shishas × AED 120 = AED ${formatMoney(shishaCount * 120)}`, "Minimum 5 shishas per booking");
+        if (shishaFlavours.length) lines.push(`Preferred flavours: ${shishaFlavours.join(", ")}`);
+      }
+    }
+
+    lines.push("", "*MENU SELECTIONS*");
+    if (isCustomMenu) {
+      customSelectedSections.forEach((section) => lines.push("", section.label, section.selectedItems.map(describeMenuItem).join(", ")));
+    } else if (selectedPackage.fixedItems) {
+      lines.push("", "Included", selectedPackage.fixedItems.map(describeMenuItem).join(", "));
+    } else {
+      selectedPackage.slots.forEach((slot) => lines.push("", slot.label, (selections[slot.id] ?? []).map(describeMenuItem).join(", ") || "-"));
+    }
+    if (guestCount > 0 && selectedMenuSurcharges.length) {
+      lines.push("", "Menu supplements");
+      selectedMenuSurcharges.forEach(({ item, rate }) => lines.push(`${item}: AED ${rate} per guest (AED ${formatMoney(rate * guestCount)})`));
+    }
+
+    lines.push("", "*CATERING ADD-ONS*", "Live counter", selectedCounterRows.length ? selectedCounterRows.map((counter) => `${counter?.name}${counter?.choices && counterChoices[counter.id] ? ` (${counterChoices[counter.id]})` : ""}`).join(", ") : "None");
+    lines.push("", "Service extras");
+    if (cateringExtras.length) cateringExtras.forEach((extra) => { if (extra) lines.push(`${extra.name} — ${formatServiceExtraPrice(extra)}`); });
+    else lines.push("None");
+    if (additionalHours) lines.push("Additional live-counter hours — requested, quoted separately");
+    if (additionalWaiters) lines.push("Additional waiters — requested, quoted separately");
+
+    lines.push("", "*PRICING NOTES*");
+    if (isCustomMenu) lines.push("Custom menu pricing will be prepared by the catering team.");
+    else if (guestCount < 20) lines.push("Price confirmation required for fewer than 20 guests.");
+    if (guestCount === 25 && selectedCounterRows.length) lines.push("Live-counter charge at exactly 25 guests to be confirmed.");
+    if (hasStartingPriceExtras) lines.push("Entertainment rates are starting prices.");
+    if (eventCuration) lines.push("Full event curation is quoted separately.");
+    lines.push("Logistics charges are subject to exact-location confirmation.", "", "Please confirm availability, final pricing, setup and delivery details.");
     return lines.join("\n");
-  }, [additionalHours, additionalWaiters, eventCuration, hasStartingPriceExtras, counterChoices, customSelectedSections, details, estimate.dessertSurcharge, estimate.knownTotal, guestCount, isCustomMenu, selectedMenuSurcharges, selectedCounterRows, selectedDeliveryArea, selectedExtraRows, selectedPackage, selections, shishaCount, shishaFlavours]);
+  }, [additionalHours, additionalWaiters, eventCuration, hasStartingPriceExtras, counterChoices, customSelectedSections, details, estimate.knownTotal, guestCount, isCustomMenu, selectedMenuSurcharges, selectedCounterRows, selectedDeliveryArea, selectedExtraRows, selectedPackage, selections, shishaCount, shishaFlavours]);
 
   const whatsappUrl = `https://wa.me/${cateringPhone}?text=${encodeURIComponent(whatsappMessage)}`;
 
