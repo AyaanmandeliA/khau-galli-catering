@@ -1,31 +1,35 @@
 # Khau Galli Catering
 
+A catering package and enquiry builder for Khau Galli, an Indian street food business in the UAE.
 
-The public Khau Galli catering menu and enquiry builder for `catering.thekhaugalli.com`.
+Live: https://catering.thekhaugalli.com
 
-## What customers can do
+## How it works
 
-- Compare all nine standard catering packages and their per-person rates, or build a quote-only custom menu.
-- Select any number of dishes across all 25 menu sections for a tailored team quotation.
-- Configure every included menu choice, including the Street Food Delights 3/2/1 selection rule.
-- Add live counters, service extras and premium shisha.
-- Enter event details, review an indicative total and open a structured WhatsApp enquiry to `+971 52 559 6653`.
-- Browse the full catering menu from the supplied eight-page PDF.
+A visitor works through a step-by-step builder. They pick a standard catering package or a quote-only custom menu, configure the dishes the package includes, and add live counters, service extras and event options. They enter event details and see an indicative estimate, including a delivery-area charge. The final step opens WhatsApp with a pre-filled, structured enquiry for the customer to send. The site does not collect or store enquiries itself and has no customer database; packages, menu sections, extras and area charges live in a typed data file (`data/catering.ts`). There is also a browsable full menu.
 
-## Local development
+## Stack
+
+- Next.js 16 on the vinext runtime, deployed to Cloudflare Workers
+- React 19 and TypeScript
+- Tailwind CSS 4 with shadcn-style components built on Base UI
+- Drizzle ORM scaffolding (present in the starter, no database is used)
+
+## Run it
 
 Requires Node.js 22.13 or newer.
 
 ```sh
 npm run install:ci
 npm run dev
-```
-
-Production validation:
-
-```sh
 npx tsc --noEmit
 npm run build
 ```
 
-The Site registration is stored in `.openai/hosting.json`. There is no customer database and the site does not submit or store enquiries itself; the final hand-off opens WhatsApp with a prefilled message for the customer to send.
+## Authorship
+
+I set the requirements and check the results. AI tools write most of the code.
+
+## Status
+
+Live.
